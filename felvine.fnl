@@ -33,8 +33,12 @@
 
 
 (fn translate-file [file]
-  (print (Dsl.translate-file file)))
-
+  (local text (Dsl.translate-file file))
+  (local out-file-name (file:gsub ".[%w]+$" ".lua"))
+  (local out-file (assert (io.open out-file-name :w)))
+  (out-file:write text)
+  (out-file:close))
+  
 
 (fn compile-file [file execution-env]
   (local run (Runtime.new execution-env))
