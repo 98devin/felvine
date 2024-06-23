@@ -14,6 +14,7 @@
     : StorageClass
     : SelectionControl
     : LoopControl
+    : MemorySemantics
   } spirv)
 
 (local
@@ -235,7 +236,7 @@
 
   (fn dsl.buffer-storage-class [type]
     (case type.kind
-      :array (dsl.uniform-storage-class type.elem)
+      :array (dsl.buffer-storage-class type.elem)
       :struct 
         (do (dsl.layout type)
             (dsl.decorate type Decoration.Block)
@@ -271,13 +272,19 @@
     (local ctx (runtime:current-ctx))
     (Node.aux.atomic-store [ctx ...]))
 
+  (fn dsl.barrier []
+    (dsl.control-barrier :Workgroup :Workgroup
+      (MemorySemantics
+        MemorySemantics.SequentiallyConsistent
+        MemorySemantics.WorkgroupMemory)))
+
   (fn dsl.control-barrier [...]
     (local ctx (runtime:current-ctx))
-    (Node.aux.control-barrier [ctx ...]))
+    (Node.aux.control-barrier ctx ...))
 
   (fn dsl.memory-barrier [...]
     (local ctx (runtime:current-ctx))
-    (Node.aux.memory-barrier [ctx ...]))  
+    (Node.aux.memory-barrier ctx ...))  
 
   (fn dsl.define-function [return name params body]
     (local funty (Type.function return params))
@@ -341,24 +348,25 @@
     (local header-block (runtime:mk-local-ctx))
     (local cond-block (runtime:mk-local-ctx))
     (local loop-block (runtime:mk-local-ctx))
-    (local cont-block (runtime:mk-local-ctx))
-    (local merge-block (runtime:mk-local-ctx))
     
     (local ctx (runtime:pop-ctx))
     (ctx:instruction (Op.OpBranch header-block.id))
-
-    (header-block:instruction (Op.OpLoopMerge merge-block.id cont-block.id loop-control))
-    (header-block:instruction (Op.OpBranch cond-block.id))
 
     (runtime:push-ctx cond-block)
     (local cond (cond))
     (local cond-ctx (runtime:pop-ctx))
     (local cond-id (cond-ctx:node-id cond))
-    (cond-ctx:instruction (Op.OpBranchConditional cond-id loop-block.id merge-block.id))
 
     (runtime:push-ctx loop-block)
     (body)
+
+    (local cont-block (runtime:mk-local-ctx))
+    (local merge-block (runtime:mk-local-ctx))
     (local loop-ctx (runtime:pop-ctx))
+
+    (header-block:instruction (Op.OpLoopMerge merge-block.id cont-block.id loop-control))
+    (header-block:instruction (Op.OpBranch cond-block.id))
+    (cond-ctx:instruction (Op.OpBranchConditional cond-id loop-block.id merge-block.id))
     (loop-ctx:instruction (Op.OpBranch cont-block.id))
 
     (runtime:push-ctx cont-block)

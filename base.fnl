@@ -280,7 +280,7 @@
 
   (fn mt.__index [self t/v]
     (local desc (or (. self.enumerants t/v) (. self.get-value t/v)))
-    (when (= nil desc) (error (.. "Enum " self.name ": No such enumerant or value: " t/v)))
+    (when (= nil desc) (error (.. "Enum " self.name ": No such enumerant or value: " (tostring t/v))))
     (if (= 0 (# desc.operands))
       (mt.make-value desc)
       (mt.make-value-factory desc)))
@@ -321,6 +321,7 @@
         : constituents
       })
     (setmetatable o enumerant-list-mt))
+
   mt)
 
 

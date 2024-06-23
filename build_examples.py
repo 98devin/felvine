@@ -3,6 +3,7 @@ from pathlib import Path
 from argparse import ArgumentParser
 import subprocess
 import sys
+from typing import List
 
 
 class Batch:
@@ -41,11 +42,14 @@ class Individual:
         sys.exit(1)
 
 
-def validate(files):
+def validate(files: List[Path], optimize=False):
     failure_cases = []
     for file in files:
         try:
-            subprocess.run(["spirv-val", file]).check_returncode()
+            if optimize:
+                subprocess.run(["spirv-opt", "-O", file, "-o", file.with_suffix(".opt.spv")]).check_returncode()
+            else:
+                subprocess.run(["spirv-val", file]).check_returncode()
         except subprocess.CalledProcessError:
             failure_cases.append(file)
 
@@ -65,6 +69,7 @@ parser.add_argument("--mode", type=str, choices=["batch", "cases"], default="cas
 parser.add_argument("--folder", type=Path, default="examples")
 parser.add_argument("--bench", action="store_true")
 parser.add_argument("--command", type=str, choices=["-c", "-t", "-S"], nargs="+", default=["-c"])
+parser.add_argument("--optimize", action="store_true")
 
 args = parser.parse_args()
 
@@ -85,6 +90,10 @@ for file in files:
 case_collector.run()
 
 if "-c" in args.command:
-    validate(args.folder.glob("**/*.spv"))
+    validate([
+        file
+        for file in args.folder.glob("**/*.spv")
+        if not file.name.endswith(".opt.spv")
+    ], optimize=args.optimize)
 
 

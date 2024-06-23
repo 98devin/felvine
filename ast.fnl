@@ -23,24 +23,9 @@
       : SpecConstantOp
       : StorageClass
     } spirv)
-
-
-
-; (fn find-operator-arg-index [kind op]
-;     (local opdesc (. Op.enumerants op.tag))
-;     (accumulate [i nil ix desc (ipairs opdesc.operands) &until (not= i nil)]
-;         (if (= kind desc.kind) ix nil)))
-
-; (fn patch-operator-arg [kind op value]
-;     (local arg-index (find-operator-arg-index kind op))
-;     (tset op.operands arg-index value))
-
-; (local patch-operator-result-type
-;     (partial patch-operator-arg :IdResultType))
-
-; (local patch-operator-result
-;     (partial patch-operator-arg :IdResult))
     
+
+
 
 (local Type { :mt {} :aux {} })
 (local Node { :mt {} :aux {} :glsl {} })
@@ -303,7 +288,14 @@
       :int (.. (if info.signed "i" "u") info.bits)
       :float (.. "f" info.bits)
       :vector (.. "v" info.count info.elem.summary)
-      :array (.. "[" (if info.count info.count "") "]" info.elem.summary)
+      :array
+        (do (local count
+          (if (= nil info.count) ""
+              (node? info.count)
+                (if (= :constant info.count.kind) info.count.constant
+                    (string.format "spec(%p)" info.count))
+              (tostring info.count)))
+            (.. "[" count "]" info.elem.summary))
       :matrix (.. "m" info.rows "x" info.cols info.elem.summary)
       :sampler :sampler
       :sampled-image
@@ -471,17 +463,17 @@
       (do (assert (= index.kind :constant) (.. "Cannot access non-constant struct field of " self.elem.summary))
           (assert (= index.type.kind :int) (.. "Struct field access must be an integer, got: " index.type.summary))
           (local member-index (+ index.constant 1))
-          (assert (<= member-index (# self.field-types)) (.. "Struct does not have enough fields for index: " member-index " " self.elem.summary))
-          (ptr-to (. self.field-types member-index)))
+          (assert (<= member-index (# field-types)) (.. "Struct does not have enough fields for index: " member-index " " self.elem.summary))
+          (ptr-to (. field-types member-index)))
     {:kind :vector : count}
       (do (assert (= index.type.kind :int) (.. "Vector index must be an integer, got: " index.type.summary))
           (when (= index.kind :constant)
             (assert (< (or index.constant 0) count) (.. "Vector index would be out of bounds: " index.constant " " self.elem.summary)))
           (ptr-to self.elem.elem))
-    {:kind :array : count}
+    {:kind :array : ?count}
       (do (assert (= index.type.kind :int) (.. "Array index must be an integer, got: " index.type.summary))
-          (when (= index.kind :constant)
-            (assert (< index.constant count) (.. "Array index would be out of bounds: " index.constant " " self.elem.summary)))
+          (when (and (= index.kind :constant) (not= nil ?count))
+            (assert (< index.constant ?count) (.. "Array index would be out of bounds: " index.constant " " self.elem.summary)))
           (ptr-to self.elem.elem))
     {:kind :matrix : cols : rows}
       (do (assert (= index.type.kind :int) (.. "Matrix index must be an integer, got: " index.type.summary))
@@ -701,6 +693,35 @@
     (ctx:instruction op))
   cid)
 
+(fn node-reify-spec-constant [self ctx]
+  (local tid (ctx:type-id self.type))
+  (local cid (ctx:fresh-id))
+  (fn constituent-ids [elem constants]
+    (icollect [_ v (ipairs constants)]
+      (ctx:node-id (Node.constant elem v))))
+  (local op
+    (case self.type.kind
+      :bool
+        (if self.constant (Op.OpSpecConstantTrue tid cid) (Op.OpSpecConstantFalse tid cid))
+      (where (or :int :float))
+        (Op.OpSpecConstant tid cid (base.serializable-with-fmt (type-serialize-fmt self.type) self.constant))
+      (where (or :vector :array))
+        (Op.OpSpecConstantComposite tid cid (constituent-ids self.type.elem self.constant))
+      :matrix
+        (Op.OpSpecConstantComposite tid cid (constituent-ids (Type.vector self.type.elem self.type.rows) self.constant))
+      :struct
+        (Op.OpSpecConstantComposite tid cid 
+          (icollect [i m (ipairs self.type.field-names)]
+            (ctx:node-id (Node.constant (. self.type.field-types i) (. self.constant m))
+      :pointer
+        (error (.. "Cannot declare a spec-constant pointer; tried to provide value: " self.constant))
+      :function
+        (error "Cannot define a spec-constant function. Function nodes are already constants.")
+      :void
+        (error "Cannot define a spec-constant of type void. Values of void do not exist."))))))
+  (ctx:instruction op)
+  cid)
+
 ;
 (fn Node.aux.adjust-constant-value [ty value]
   ; (print :adjust-constant-value ty.summary value)
@@ -743,6 +764,12 @@
         :reify node-reify-constant
       })))
 
+(fn Node.spec-constant [type value]
+  (local const (Node.constant type value))
+  (set const.kind :spec-constant)
+  (set const.reify node-reify-spec-constant)
+  const)
+
 (fn node-reify-composite [self ctx]
   (local tid (ctx:type-id self.type))
   (local argids
@@ -772,8 +799,8 @@
 (fn Node.aux.base-pointer [ptr]
   (assert (= ptr.type.kind :pointer) (.. "Node is not a pointer: " (tostring ptr)))
   (var base ptr)
-  (while (and (= :expr ptr.kind) (= :OpAccessChain ptr.operation))
-    (set base (. ptr.operands 1)))
+  (while (and (= :expr base.kind) (= :OpAccessChain base.operation))
+    (set base (. base.operands 1)))
   base)
 
 
@@ -2326,13 +2353,14 @@
 (fn Node.aux.control-barrier [ctx execution-scope memory-scope memory-semantics]
   (local execution-scope 
     (if (enum? execution-scope) execution-scope.value
-        (. Scope execution-scope :value)))
+        (= (type execution-scope) :string) (. Scope execution-scope :value)
+        execution-scope))
   (local memory-scope 
     (if (enum? memory-scope) memory-scope.value
-        (= (type memory-scope) :string (. Scope memory-scope :value)
-        memory-scope)))
+        (= (type memory-scope) :string) (. Scope memory-scope :value)
+        memory-scope))
   (local memory-semantics
-    (if (= (enum? memory-semantics) :MemorySemantics) memory-semantics.value
+    (if (= (enum? memory-semantics) :MemorySemantics) memory-semantics.value-union
         (error "Must provide MemorySemantics flags value explicitly for barrier")))
   (ctx:instruction 
     (Op.OpControlBarrier (ctx:node-id (u32 execution-scope)) 
@@ -2345,7 +2373,7 @@
         (= (type memory-scope) :string (. Scope memory-scope :value)
         memory-scope)))
   (local memory-semantics
-    (if (= (enum? memory-semantics) :MemorySemantics) memory-semantics.value
+    (if (= (enum? memory-semantics) :MemorySemantics) memory-semantics.value-union
         (error "Must provide MemorySemantics flags value explicitly for barrier")))
   (ctx:instruction 
     (Op.OpMemoryBarrier (ctx:node-id (u32 memory-scope)) 
@@ -2655,6 +2683,8 @@
 
 ; TODO: Consider using OpInBoundsAccessChain when it is possible to do so
 (fn Node.access [base index]
+  ; (print :Node.access base index)
+  (local index (Node.aux.autoderef index))
   (var result-type (Type.access base.type index))
   (if (and (= base.kind :expr) (= base.operation :OpAccessChain))
       (do (local [base indices] base.operands)
@@ -2796,7 +2826,7 @@
     (where (:pointer :string))
       (do (local elem self.type.elem)
           (if (= elem.kind :struct)
-                (Node.access self (struct-member-index elem index))
+                (Node.access self (u32 (struct-member-index elem index)))
               (and (= elem.kind :vector)
                    (index:match "^[xyzwrgbauvst0123]$"))
                 (Node.access self (Node.constant (Type.int 32 true) (. swizzle-index index)))
@@ -2854,7 +2884,7 @@
     :param (.. "(param " self.type.summary ")")
     :variable (.. "(variable " self.type.summary ")")
     :constant (.. "(constant " self.type.summary " " (node-constant-summary self) ")")
-    :spec-constant (.. "(spec-constant " self.type.summary " " self.operation ")")
+    :spec-constant (.. "(spec-constant " self.type.summary (if (rawget self :operation) (.. " " self.operation) "") ")")
     :function (.. "(function " self.type.summary ")")
     :phi (.. "(phi " self.type.summary ")")))
 

@@ -58,8 +58,7 @@
           (for [i (- (# spec) 1) 1 -1]
             (local dim (. spec i))
             (case (and (sym? dim) (string.match (tostring dim) "%*(%w+)"))
-              false (set t `(Type.array ,t ,(. spec i))) ; assuming numeric array dim
-              ptr-kind
+              (where ptr-kind (not= false ptr-kind))
                 (let [ptr-kind (case ptr-kind
                         :P :PhysicalStorageBuffer
                         :W :Workgroup
@@ -67,7 +66,8 @@
                         :I :Input
                         :O :Output
                         other other)]
-                  (set t `(Type.pointer ,t (. spirv.StorageClass ,ptr-kind))))))
+                  (set t `(Type.pointer ,t (. spirv.StorageClass ,ptr-kind))))
+              _ (set t `(Type.array ,t ,dim)))) ; assuming numeric array dim
           t)))
 
     ; struct sugar { x f32 y ([3 f32] (Location 0) (Builtin Foo)) }
@@ -163,6 +163,10 @@
     _ `(dsl.if-then-else ,cond1 (fn [] ,then1) (fn [] (if* ,else1/cond2 ,...)))))
 
 
+(fn when* [cond ...]
+  `(dsl.if-then-else ,cond (fn [] ,...) (fn [])))
+
+
 (fn fn* [name return args ...]
   (local arg-types [])
   (local arg-syms  [])
@@ -221,6 +225,33 @@
             `(dsl.decorate v# ,(table.unpack decs)))
           (dsl.name v# ,(tostring name))
           v#)))
+
+
+(fn const* [name type ...]
+  (local decs [])
+  (var init nil)
+
+  (fn go [...]
+    (case ...
+      (:= v)
+        (do (assert-compile (= nil init) "Cannot have two initializers for constant" v)
+            (set init v)
+            (go (select 3 ...)))
+      dec
+        (do (local dec (spirv-enum spirv.Decoration dec))
+            (assert dec "Unrecognized decoration:" dec)
+            (table.insert decs dec)
+            (go (select 2 ...)))))
+
+  (go ...)
+  
+  (assert-compile (not= nil init) "Constant must be given an initial value: " name)
+  
+  `(local ,name
+    (do (local v# (Node.spec-constant ,(type* type) ,init))
+        (dsl.decorate v# ,(table.unpack decs))
+        (dsl.name v# ,(tostring name))
+        v#)))
 
 
 (fn while* [cond ...]
@@ -333,10 +364,12 @@
 
 {
  : if* 
+ : when*
  : while*
  : for*
  : fn*
  : var*
+ : const*
 
  :type* def-type*
  : ref-types*
