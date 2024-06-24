@@ -176,19 +176,28 @@
         (tset self.ext-inst-ids ext-inst id)
         id)))
 
+(fn get-or-set-empty [t field]
+  (local v (. t field))
+  (if v v
+    (do (local empty {})
+        (tset t field empty)
+        empty)))
+
 (fn Env.execution-mode [self entrypoint mode]
   ; Fix up mode so that if any nodes are referenced, they are replaced by Id values
-  ; This is fine to do here, since any such nodes must be (spec) constants anyway.
+  ; This is fine to do in the Env itself, since any such nodes must be (spec) constants anyway.
+  (local u32 (Type.int 32 false))
+
   (when mode.operands
     (local desc (. ExecutionMode.enumerants mode.tag))
     (each [i arg (ipairs mode.operands)]
       (local opdesc (. desc.operands i))
       (when (opdesc.kind:match "Id")
-        (tset mode.operands i (self:reify-node arg)))))
+        ; If any non-integer ids become necessary here will need to change
+        (tset mode.operands i (self:reify-node (u32 arg))))))
 
-  (local modes-for-entrypoint (or (?. self.execution-modes entrypoint) {}))
-  (tset modes-for-entrypoint mode.tag mode)
-  (tset self.execution-modes entrypoint modes-for-entrypoint))
+  (local modes-for-entrypoint (get-or-set-empty self.execution-modes entrypoint))
+  (tset modes-for-entrypoint mode.tag mode))
 
 (fn Env.instruction [self op]
   (if 
@@ -242,13 +251,6 @@
       (local new-node-id (or (node:reify self) (self:fresh-id)))
       (tset self.node-ids node new-node-id)
       new-node-id)))
-
-(fn get-or-set-empty [t field]
-  (local v (. t field))
-  (if v v
-    (do (local empty {})
-        (tset t field empty)
-        empty)))
 
 (fn Env.decorate-id [self id ...]
   (local id-decorations (get-or-set-empty self.decorations id))

@@ -214,11 +214,18 @@
     (runtime:instruction (Op.OpName id name)))
 
   ; TODO: Know what type each builtin is so we can automatically fill that in.
-  ; (fn export.builtin [name])
+  ; (fn dsl.builtin [name])
 
-  (fn dsl.variable [type storage]
+  (fn dsl.variable [type storage init]
     (local storage (or storage StorageClass.Function))
-    (local v (Node.variable type storage))
+
+    (local init (if init (type init)))
+    (local const-init
+      (if (and init (or (= init.kind :constant) (= init.kind :spec-constant))) init))
+
+    (local v (Node.variable type storage const-init))
+    (when (and init (not const-init))
+      (dsl.set* v init))
     v)
 
   (fn dsl.uniform-storage-class [type]

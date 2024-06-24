@@ -27,7 +27,7 @@
   particleCount u32
 })
 
-(entrypoint main GLCompute [(LocalSizeId LOCAL_SIZE_X (u32 1) (u32 1))]
+(entrypoint main GLCompute [(LocalSizeId LOCAL_SIZE_X 1 1)]
   (local index globalInvocation.x)
 
   (when* (lt? index UBO.particleCount)

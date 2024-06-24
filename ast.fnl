@@ -2808,6 +2808,7 @@
 ; value.field
 ; vector.xxyy swizzle
 (fn Node.index [self index]
+  (local index (Node.aux.autoderef index))
   (case (values self.type.kind (type index))
     (where (or 
       (:struct :number)

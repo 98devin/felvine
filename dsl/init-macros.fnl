@@ -199,6 +199,8 @@
   (var storage nil)
   (var init nil)
 
+  (local vtype (type* type))
+
   (fn go [...]
     (case ...
       (:= v)
@@ -218,9 +220,7 @@
   (go ...)
 
   `(local ,name 
-      (do (local v# (dsl.variable ,(type* type) ,storage))
-          ,(if (not= nil init)
-            `(dsl.set* v# ,init))
+      (do (local v# (dsl.variable ,vtype ,storage ,init))
           ,(if (not= 0 (# decs))
             `(dsl.decorate v# ,(table.unpack decs)))
           (dsl.name v# ,(tostring name))
