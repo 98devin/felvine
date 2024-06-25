@@ -127,6 +127,7 @@
       :determinant Node.determinant
       :det Node.determinant
       :invert Node.matrix-inverse
+      :transpose Node.matrix-transpose
      
       :| Node.|
       :& Node.&

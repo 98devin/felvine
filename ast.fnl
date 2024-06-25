@@ -2635,6 +2635,17 @@
     :MatrixInverse mat-type mat))
 
 
+(fn Node.matrix-transpose [mat]
+  (local mat (Node.aux.autoderef mat))
+  (assert (and (node? mat) (= mat.type.kind :matrix)) "Cannot invert non-matrix value.")
+  
+  (local mat-type mat.type)
+  (local out-type (Type.matrix mat-type.elem mat-type.cols mat-type.rows))
+
+  (Node.aux.op
+    :OpTranspose out-type mat))
+
+
 (fn Node.modf [value]
   (local value (Node.aux.autoderef value))
   (if (= :number (type value)) (math.modf value)
@@ -2815,6 +2826,9 @@
       (:vector :number)
       (:matrix :number)
       (:array  :number))) (Node.extract self (math.floor index))
+    (where (:array :table) (node? index))
+      (do (assert (or (= index.kind :constant) ))
+        (Node.extract self (math.floor index)))
     (:pointer :number)
       (Node.access self
         (Node.constant (Type.int 32 true) (math.floor index)))
