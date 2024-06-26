@@ -33,8 +33,37 @@ and performs fewer redundant operations than unoptimized results from glslang. O
 
 ## Features Index
 
+### Types
 
-### DSL operations provided
+Felvine offers manual constructor syntax for types for convenient metaprogramming, but also has built in names to reference the most common ones.
+For compound types like structs, it also includes syntax sugar which is usable in variable, uniform, and function declarations. In many cases you may just
+want to create a named pointer or struct type, in which case the `(type* Name <defn>)` syntax will declare it and provide it as a variable `Name`. The convenient syntax used for these cases is also shown below in the table, and works recursively for struct members etc.
+
+Types are first class values in Felvine, so should you prefer, you can create aliases of types to match your favorite naming convention instead.
+Generic or parametrized types can be represented by a function that returns a type, and will be deduplicated in the final SPIRV.
+
+To test whether a metavalue represents a type, you can use the `type?` function, e.g. `(assert (type? i32) "Integers are a type!")`.
+
+| Kind of type | Constructor | Syntax Sugar | Predefined name(s) | GLSL Type(s) |
+| - | - | - | - | - |
+| Void | `(Type.void)` | N/A | `void` | `void` |
+| Booleans | `(Type.bool)` | N/A | `bool` | `bool` |
+| Integers | `(Type.int bits signed?)` | N/A | `i8` `i16` `i32` `i64` `u8` `u16` `u32` `u64` | `int` `uint` `int8_t` `uint64_t` etc. |
+| Floats | `(Type.float bits)` | N/A |  `f16` `f32` `f64` | `float16_t` `float` `double` |
+| Arrays | `(Type.array element count?)` | `[count... elem]` e.g. `[3 f32]` `[u8]` `[4 4 f64]` | N/A | `float[3]` `uint8_t[]` `double[4][4]` etc. |
+| Vectors | `(Type.vector element count)` | N/A | `(vec2 f32)` `(vec3 int32)` `(vec4 f16)` etc. | `vec2` `ivec3` `f16vec4` etc. |
+| Matrices | `(Type.matrix element rows cols)` | N/A | `(mat4 f32)` `(mat2x3 f32)` `(mat3 f64)` etc. | `mat4` `mat2x3` `dmat3` etc. |
+| Pointers | `(Type.pointer element storageClass)` | `[*Storage elem]` where some abbreviations are supported, e.g. `[*Input (vec3 f32)]` or `[*P 3 f32]` for a physical buffer pointer to an array of 3 floats. | N/A | Mostly N/A, `layout(buffer_reference)` applies to some cases. |
+| Structs | `(Type.struct field-types field-names)` | `{ name1 type1 name2 (type2 decorations...) ... }` | N/A | `struct` |
+| Images | `(image ...opts elem?)` e.g. `(image :sampled :2D :Array i32)` or `(image :storage :Buffer :Rg32f)` | N/A | N/A | `iimage2DArray`, `layout(rg32f) textureBuffer` etc. |
+| Sampled Images | `(Type.sampled image-type)` or  `(sampled-image ...opts elem?)` e.g. `(sampled-image :3D)` | N/A | N/A | `sampler2DArray` `sampler3D` etc. |
+| Samplers | `(Type.sampler)` | N/A | `sampler` | `sampler` |
+| Functions | `(Type.function return-type [param-types...])` | N/A | N/A | N/A |
+| Acceleration Structures | `(Type.acceleration-structure)` | N/A | `acceleration-structure` | `accelerationStructureEXT` |
+| Ray Queries | `(Type.ray-query)` | N/A | `ray-query` | `rayQueryEXT` |
+
+
+### Functions and operators
 
 | Operation | Felvine syntax | GLSL Syntax |
 | - | - | - |

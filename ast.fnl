@@ -339,6 +339,20 @@
       :summary :sampler
     }))
 
+(fn Type.acceleration-structure []
+  (Type.new
+    { :kind :acceleration-structure
+      :opaque true
+      :summary :acceleration-structure
+    }))
+
+(fn Type.ray-query []
+  (Type.new
+    { :kind :ray-query
+      :opaque true
+      :summary :ray-query
+    }))
+
 (fn Type.sampled [image]
   (assert (= image.kind :image) (.. "Cannot sample non-image type: " image.summary))
   (assert (= image.usage :texture) (.. "Cannot sample storage image: " image.summary))

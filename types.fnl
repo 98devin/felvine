@@ -4,6 +4,9 @@
 
 (local void (Type.void))
 (local bool (Type.bool))
+(local sampler (Type.sampler))
+(local acceleration-structure (Type.acceleration-structure))
+(local ray-query (Type.ray-query))
 
 (local i8  (Type.int 8  true))
 (local i16 (Type.int 16 true))
@@ -267,6 +270,10 @@
 
 
 { : void
+  : bool
+  : sampler
+  : acceleration-structure
+  : ray-query
   : i8
   : i16
   : i32
