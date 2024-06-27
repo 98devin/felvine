@@ -63,6 +63,26 @@ To test whether a metavalue represents a type, you can use the `type?` function,
 | Ray Queries | `(Type.ray-query)` | N/A | `ray-query` | `rayQueryEXT` |
 
 
+### Type constructors
+
+Felvine types can be used as a function to cast or construct values. The arguments required to initialize depends on the type, of course.
+If the values passed are all metavalues, the result will be a constant in SPIRV and will be somewhat constant propagated.
+
+When a variable initializer or store argument, function argument, or function return is evaluated, it is cast to the expected type
+using this procedure. Some operations that require values to be integers or floats will also cast the input automatically.
+
+| Kind of type | Example cast/construction |
+| - | - |
+| Booleans | `(bool true)` `(bool false)` |
+| Numbers | `(u32 1)` `(f32 3)` `(i32 x)` |
+| Arrays | Either a single list, or vararg list e.g. `((array i32 3) [1 2 3])` `((array i32) 1 2 3 4 5)` Using a runtime-length array type will infer the length based on the arguments provided. |
+| Vectors | A number of vector or scalar arguments which provide enough components. `((vec2 f32) 1.0 2.0)` `((vec4 f32) v.xyz 1.0)` Or, a list of scalars i.e. `((vec3 i32) [0 1 2])`. |
+| Matrices | A list of vectors or vector initializers, e.g. `((mat2 f32) [0 1] v.zw)` |
+| Structs | An object with the correct fields, e.g. given the definition `(type* Pos { x f32 y 32 })`, one can write `(local position (Pos { :x 10 :y 10 }))`
+
+Other types cannot be constructed from values and must be initialized by e.g. descriptor bindings.
+
+
 ### Functions and operators
 
 | Operation | Felvine syntax | GLSL Syntax |
