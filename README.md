@@ -152,6 +152,13 @@ For example:
 (local b (+ a0-ptr 10))
 (local b (+ a0 10))
 
+; Because the leading pointer type is preserved, the SAME indexing syntax is used for storing to variables/buffers etc.
+(set* data.vector data.vector.zyx)
+(set* (data :array 5) v0)
+
+(set* data.pointer.* { :x 10 :y 10 }) ; This is where the trailing * also matters!
+(set* data.pointer other-pointer-value) ; Without it, we are setting the pointer itself, not its contents.
+
 ```
 
 
