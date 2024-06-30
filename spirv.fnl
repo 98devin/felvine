@@ -1,7 +1,4 @@
-
-
 (local {: mk-enum} (require :base))
-
 
 (local magic-number 0x07230203)
 (local major-version 1)

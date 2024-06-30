@@ -1,4 +1,4 @@
-(require-macros :dsl)
+(require-macros :dsl.v1)
 (capability Shader)
 
 (type* Particle {

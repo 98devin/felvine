@@ -1,18 +1,27 @@
-(local Dsl (require :dsl))
+
 (local base (require :base))
 (local fennel (require :fennel))
 (local {: ExecutionEnvironment} (require :requirements))
-(local {: Runtime} (require :runtime))
-
+(local {: Runtime : Dsl} (require :runtime))
 
 (fn caps-list [e]
   (local caps (base.get-capabilities e))
   (icollect [cap _ (pairs caps)]
     cap))
 
-
 (fn caps-unpacked [e]
   (table.unpack (caps-list e)))
+
+
+(fn felvine-dofile [file runtime]
+  (local runtime (or runtime (Runtime.new)))
+  (local env (Dsl.create-exported-env runtime))
+  (fennel.dofile file
+    { :env env
+      :compilerEnv _G
+      :requireAsInclude true
+    })
+  runtime)
 
 
 (fn asm-file [file execution-env]
@@ -20,20 +29,33 @@
   (local start-time (os.clock))
   (var total-time 0)
 
-  (Dsl.dofile file run)
+  (felvine-dofile file run)
+  (local ops (run.env:produce-ops))
 
   (local end-time (os.clock))
   (set total-time (+ total-time (- end-time start-time)))
   (print "finished in" total-time)
   
-  (local ops (run.env:produce-ops))
-
   (each [_ op (ipairs ops)]
     (print op (caps-unpacked op))))
 
 
 (fn translate-file [file]
-  (local text (Dsl.translate-file file))
+  (local runtime (Runtime.new))
+  (local env (Dsl.create-exported-env runtime))
+
+  (local (f err) (io.open file :r))
+  (assert (= err nil) err)
+  (local content (f:read :*a))
+  (f:close)
+
+  (local text
+    (fennel.compileString content
+      { :requireAsInclude true
+        :filename file
+        :env env
+      }))
+
   (local out-file-name (file:gsub ".[%w]+$" ".lua"))
   (local out-file (assert (io.open out-file-name :w)))
   (out-file:write text)
@@ -45,11 +67,7 @@
   (local start-time (os.clock))
   (var total-time 0)
 
-  (Dsl.dofile file run)
-
-  (local end-time (os.clock))
-  (set total-time (+ total-time (- end-time start-time)))
-  (print "finished in" total-time)
+  (felvine-dofile file run)
   
   (local ops (run.env:produce-ops))
   (local header (run.env:produce-header))
@@ -63,7 +81,11 @@
   (each [_ segment (ipairs buffer)]
     (out-file:write segment))
   (out-file:close)
-  
+
+  (local end-time (os.clock))
+  (set total-time (+ total-time (- end-time start-time)))
+  (print "finished in" total-time)
+
   (print "wrote" out-file-name))
 
 

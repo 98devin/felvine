@@ -1,6 +1,5 @@
-(require-macros :dsl)
+(require-macros :dsl.v1)
 (capability Shader)
-
 
 (var* positions [3 (vec2 f32)] Private NonWritable
   := [

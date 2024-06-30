@@ -1,6 +1,5 @@
 (local spirv (require :spirv))
 
-
 (fn spirv-enum [enum item]
   (if (list? item)
     (do (var [head & rest] item)
@@ -188,7 +187,7 @@
     steps)
 
   `(local ,name 
-    (let [fun# (define-function ,(type* return) ,(tostring name) ,arg-types (fn ,arg-syms ,...))]
+    (let [fun# (dsl.define-function ,(type* return) ,(tostring name) ,arg-types (fn ,arg-syms ,...))]
       (do (local f# fun#.function)
          ,(table.unpack (arg-sym-debug-info `f#)))
       fun#)))
@@ -225,6 +224,10 @@
             `(dsl.decorate v# ,(table.unpack decs)))
           (dsl.name v# ,(tostring name))
           v#)))
+
+
+(fn set* [...]
+  `(dsl.set* ,...))
 
 
 (fn const* [name type ...]
@@ -369,6 +372,7 @@
  : for*
  : fn*
  : var*
+ : set* ; currently a passthrough but may not be later
  : const*
 
  :type* def-type*

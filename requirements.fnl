@@ -69,17 +69,17 @@
     (table.concat reqs " or\n")))
 
 
-(fn mk-requirements-index [t]
+(macro mk-requirements-index [t]
   (collect [name opts (pairs t)]
-    name (Requirement.mk name
-      (case (type opts)
-        :string { :vk [ opts ] }
-        :table (if opts.major { :ver opts }
+    name `(Requirement.mk ,name
+      ,(case (type opts)
+        :string `{ :vk [ ,opts ] }
+        :table (if opts.major `{ :ver ,opts }
                    opts.ver opts
-                   { :vk opts })))))
+                   `{ :vk ,opts })))))
 
 
-(local pre-index
+(local index (mk-requirements-index
   { :Matrix
       { :major 1 :minor 0 }
 
@@ -851,10 +851,10 @@
       :VK_NV_raw_access_chains
 
     :SPV_EXT_replicated_composites
-      :VK_EXT_shader_replicated_composites })
+      :VK_EXT_shader_replicated_composites }))
 
 
 { : ExecutionEnvironment
   : Requirement
-  :index (mk-requirements-index pre-index)
+  : index
 }

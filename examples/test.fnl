@@ -1,4 +1,4 @@
-(require-macros :dsl)
+(require-macros :dsl.v1)
 
 (local
   { : ExecutionModel
@@ -22,7 +22,6 @@
   Int16
   Int64
   Float64
-  FragmentBarycentricKHR
   GroupNonUniformArithmetic
   GroupNonUniformClustered
   PhysicalStorageBufferAddresses)
@@ -34,7 +33,7 @@
   (capability :MeshShadingEXT))
 
 (var* Position (vec4 f32) StorageClass.Input
-   (BuiltIn Position))
+  (Location 0))
 
 (type* Material {
   albedo u32
@@ -44,11 +43,11 @@
 
 (ref-types*
   Node { left Node right Node content f32 }
-  Tree { root Node all-children [Node] })
+  Tree { root Node all-children Node })
 
-(uniform (0 0) MaterialData {
+(buffer (0 0) MaterialData {
   materials [Material]
-})
+} NonWritable)
 
 (buffer (0 2) GeometryData [128 {
   positions [(vec3 f32)]
@@ -205,13 +204,13 @@
 (local image-2D-array   (sampled-image :2D   :array f32))
 (local image-Cube-array (sampled-image :Cube :array f32))
 
-(local storage-image-1D         (image :storage :1D          f32))
-(local storage-image-2D         (image :storage :2D          f32))
-(local storage-image-3D         (image :storage :3D          f32))
-(local storage-image-Cube       (image :storage :Cube        f32))
-(local storage-image-1D-array   (image :storage :1D   :array f32))
-(local storage-image-2D-array   (image :storage :2D   :array f32))
-(local storage-image-Cube-array (image :storage :Cube :array f32))
+(local storage-image-1D         (image :storage :1D          f32 :Rgba32f))
+(local storage-image-2D         (image :storage :2D          f32 :Rgba32f))
+(local storage-image-3D         (image :storage :3D          f32 :Rgba32f))
+(local storage-image-Cube       (image :storage :Cube        f32 :Rgba32f))
+(local storage-image-1D-array   (image :storage :1D   :array f32 :Rgba32f))
+(local storage-image-2D-array   (image :storage :2D   :array f32 :Rgba32f))
+(local storage-image-Cube-array (image :storage :Cube :array f32 :Rgba32f))
 
 (local uniform-texel-buffer (image :sampled :Buffer :R32f))
 (local storage-texel-buffer (image :storage :Buffer :R32f))
@@ -278,7 +277,6 @@
 
      (+ (sample im-1D         uv-1D         :Dref 0.0)
         (sample im-2D         uv-2D         :Dref 0.0)
-        (sample im-3D         uv-3D         :Dref 0.0)
         (sample im-Cube       uv-Cube       :Dref 0.0)
         (sample im-1D-array   uv-1D-array   :Dref 0.0)
         (sample im-2D-array   uv-2D-array   :Dref 0.0)
@@ -286,7 +284,6 @@
         
         (sample im-1D         uv-1D         :Dref 0.0 :Lod 0)
         (sample im-2D         uv-2D         :Dref 0.0 :Lod 0)
-        (sample im-3D         uv-3D         :Dref 0.0 :Lod 0)
         (sample im-Cube       uv-Cube       :Dref 0.0 :Lod 0)
         (sample im-1D-array   uv-1D-array   :Dref 0.0 :Lod 0)
         (sample im-2D-array   uv-2D-array   :Dref 0.0 :Lod 0)
@@ -294,11 +291,9 @@
     
         (sample im-1D         uv-1D-array   :Proj :Dref 0.0)
         (sample im-2D         uv-2D-array   :Proj :Dref 0.0)
-        (sample im-3D         uv-Cube-array :Proj :Dref 0.0)
         
         (sample im-1D         uv-1D-array   :Proj :Dref 0.0 :Lod 0)
         (sample im-2D         uv-2D-array   :Proj :Dref 0.0 :Lod 0)
-        (sample im-3D         uv-Cube-array :Proj :Dref 0.0 :Lod 0)
         
         )))
 
@@ -395,8 +390,8 @@
     (runtime-array [f32])
     (ptr [*P f32] Restrict)
     (struct {
-      x (f32 (BuiltIn BaryCoordKHR))
-      y (f32 (BuiltIn Position)) 
+      x f32
+      y f32
     })
   ]
   num)

@@ -349,14 +349,12 @@
   (local desc-mt { :__index enumerant-desc-proto })
   (local get-value
     (collect [tag desc (pairs enumerants)]
-      desc.value desc))
+      desc.value (setmetatable desc desc-mt)))
   (local enum
     { : name 
       : kind
       : enumerants
       : get-value })
-  (each [_ e (pairs enumerants)]
-    (setmetatable e desc-mt))
   (setmetatable enum (make-mt enum)))
 
 
