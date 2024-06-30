@@ -63,7 +63,7 @@ To test whether a metavalue represents a type, you can use the `type?` function,
 | Ray Queries | `(Type.ray-query)` | N/A | `ray-query` | `rayQueryEXT` |
 
 
-### Type constructors
+### Types as constructors
 
 Felvine types can be used as a function to cast or construct values. The arguments required to initialize depends on the type, of course.
 If the values passed are all metavalues, the result will be a constant in SPIRV and will be somewhat constant propagated.
@@ -80,7 +80,7 @@ using this procedure. Some operations that require values to be integers or floa
 | Matrices | A list of vectors or vector initializers, e.g. `((mat2 f32) [0 1] v.zw)` |
 | Structs | An object with the correct fields, e.g. given the definition `(type* Pos { x f32 y 32 })`, one can write `(local position (Pos { :x 10 :y 10 }))`
 
-Other types cannot be constructed from values and must be initialized by e.g. descriptor bindings.
+Other types of values cannot be constructed like this and must be initialized by e.g. descriptor bindings.
 
 
 ### Functions and operators
@@ -100,6 +100,61 @@ Other types cannot be constructed from values and must be initialized by e.g. de
 | Trigonometry | `(sin theta)` `(cos theta)` `(tan theta)` `(arcsin theta)` `(arccos theta)` `(arctan theta)` `(sinh theta)` `(cosh theta)` `(tanh theta)` `(arcsinh theta)` `(arccosh theta)` `(arctanh theta)` | `sin(theta)` `cos(theta)` `tan(theta)` `asin(theta)` `acos(theta)` `atan(theta)` `sinh(theta)` `cosh(theta)` `tanh(theta)` `asinh(theta)` `acosh(theta)` `atanh(theta)` |
 | Other floating operations | `(exp x)` `(exp2 x)` `(log x)` `(ln x)` `(log2 x)` `(sqrt x)` `(inverse-sqrt x)` | `exp(x)` `exp2(x)` `log(x)` `log(x)` `log2(x)` `sqrt(x)` `inversesqrt(x)` |
 | Vector and Matrix operations | `(dot v1 v2)` `(normalize v)` `(det m)` `(determinant m)` `(invert m)` `(transpose m)` | `dot(v1, v2)` `normalize(v)` `determinant(m)` `determinant(m)` `inverse(m)` `transpose(m)` |
+
+
+### Indexing and field access
+
+Retrieving elements of vectors, matrices, arrays, and structs is an extremely common operation and can be done in a consistent way in Felvine.
+Indices and fields are accessed by applying the value to an integer (for array/element access) or string (for struct field access or swizzling).
+
+For example:
+
+```fennel
+
+; To demonstrate all different kinds of indexing we will use this example type:
+(type* Data {
+    vector (vec3 f32)
+    matrix (mat3x3 f32)
+    array [10 f32]
+    pointer [*P { x f32 y f32 }]
+})
+
+(var* data Data := ...) ; Suppose we have a value of this type already.
+
+(local v data.vector) ; Field access can use `.` in many cases
+(local v (data :vector)) ; Field access can also be written `(struct :field)` though. Allows computing field name at compile time.
+
+(local v0 (v 0)) ; Vector indexing is written `(vector index)`. indexing is zero-based (per SPIRV).
+(local vX v.x) ; Swizzling allows accessing vector elements by other names: xyzw, rgba, or 0123
+(local vXY (v :xy)) ; Swizzles can also be written like this.
+
+(local m00  (data :matrix 0 0))  ; When using the list style indexing, we can chain multiple accesses together to get deeper elements.
+(local m0yz (data.matrix 0 :yz)) ; Matrix indexing returns columns, which we can then swizzle if we desire.
+
+; Note: p is a Function* PhysicalStorageBuffer* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
+(local p data.pointer) 
+
+; Felvine auto-dereferences one level of pointer indirection, but here we have two!
+; To access the data within p, we need to dereference the outer pointer with `.*` or `:*` access
+
+(local px p.*.x)     ; px is PhysicalStorageBuffer* f32
+(local py (p :* :y)) ; py is PhysicalStorageBuffer* f32
+
+; Often you do want the indexed value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
+; For example, only pointers-to-arrays can be dynamically indexed, while direct array indices must be constants.
+; Usually the default semantics will be the ones you want though, and indexing will preserve the outermost pointer.
+
+(local a0-ptr (data.array 0)) ; Function* f32, using dynamic indexing (happens to be constant here).
+(local a0 (data.array.* 0)) ; f32, using constant indexing. Worse choice since it technically copies the array.
+
+; Felvine always auto-dereferences when needed so usually you will not need to do this, but all these are valid and equivalent:
+(local b (+ a0-ptr.* 10))
+(local b (+ a0-ptr 10))
+(local b (+ a0 10))
+
+```
+
+
 
 ## Motivation
 
