@@ -407,6 +407,7 @@
   ; To access the data within p, we need to dereference the outer pointer with `.*` or `:*` access
 
   (local px p.*.x)     ; px is PhysicalStorageBuffer64* f32
+  (local px p.x)       ; px is PhysicalStorageBuffer64* f32
   (local py (p :* :y)) ; py is PhysicalStorageBuffer64* f32
 
   ; Often you do want the indexed value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
@@ -425,7 +426,7 @@
   (set* data.vector data.vector.zyx)
   (set* (data :array 5) v0)
 
-  (set* data.pointer.* { :x 10 :y 10 }) ; This is where the trailing * also matters!
+  (set* data.pointer.* { :x py :y px }) ; This is where the trailing * also matters!
   (set* data.pointer other-pointer-value) ; Without it, we are setting the pointer itself, not its contents.
 )
 

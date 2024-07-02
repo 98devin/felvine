@@ -17,6 +17,7 @@
       : ImageFormat
       : ImageOperands
       : MemoryModel
+      : MemoryAccess
       : Op
       : Scope
       : SourceLanguage
@@ -901,6 +902,12 @@
   (local tid (ctx:type-id self.type))
   (local source-id (ctx:node-id source))
   (local id (ctx:fresh-id))
+
+  (local memory-ops
+    (if (= source.type.storage.tag :PhysicalStorageBuffer64)
+        (MemoryAccess (MemoryAccess.Aligned source.type.elem.alignment) memory-ops)
+        memory-ops))
+
   (local op (Op.OpLoad tid id source-id memory-ops))
   (ctx:instruction op)
 
