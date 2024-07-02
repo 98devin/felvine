@@ -75,7 +75,9 @@
           (local field-names [])
           (local field-decorations {})
           (var i 1)
-          (each [k v (pairs spec)]
+          (local mt (getmetatable spec))
+          (each [_ k (ipairs mt.keys)]
+            (local v (. spec k))
             (table.insert field-names (tostring k))
             (var (v0 decs)
               (if (list? v) (let [[v0 & decs] v] (values v0 decs)) v))
