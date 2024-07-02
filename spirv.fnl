@@ -2146,8 +2146,8 @@
             :RayTracingKHR
         ]
     }
-    :PhysicalStorageBuffer {
-        :tag :PhysicalStorageBuffer
+    :PhysicalStorageBuffer64 {
+        :tag :PhysicalStorageBuffer64
         :value 5349
         :version { :major 1 :minor 5 }
         :extensions [
@@ -2214,7 +2214,7 @@
 (set StorageClass.enumerants.HitAttributeNV StorageClass.enumerants.HitAttributeKHR)
 (set StorageClass.enumerants.IncomingRayPayloadNV StorageClass.enumerants.IncomingRayPayloadKHR)
 (set StorageClass.enumerants.ShaderRecordBufferNV StorageClass.enumerants.ShaderRecordBufferKHR)
-(set StorageClass.enumerants.PhysicalStorageBufferEXT StorageClass.enumerants.PhysicalStorageBuffer)
+(set StorageClass.enumerants.PhysicalStorageBufferEXT StorageClass.enumerants.PhysicalStorageBuffer64)
 
 
 (local Dim (mk-enum :Dim :value {

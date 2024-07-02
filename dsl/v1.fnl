@@ -59,7 +59,7 @@
             (case (and (sym? dim) (string.match (tostring dim) "%*(%w+)"))
               (where ptr-kind (not= false ptr-kind))
                 (let [ptr-kind (case ptr-kind
-                        :P :PhysicalStorageBuffer
+                        :P :PhysicalStorageBuffer64
                         :W :Workgroup
                         :G :Generic
                         :I :Input

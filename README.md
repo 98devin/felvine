@@ -131,14 +131,14 @@ For example:
 (local m00  (data :matrix 0 0))  ; When using the list style indexing, we can chain multiple accesses together to get deeper elements.
 (local m0yz (data.matrix 0 :yz)) ; Matrix indexing returns columns, which we can then swizzle if we desire.
 
-; Note: p is a Function* PhysicalStorageBuffer* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
+; Note: p is a Function* PhysicalStorageBuffer64* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
 (local p data.pointer) 
 
 ; Felvine auto-dereferences one level of pointer indirection, but here we have two!
 ; To access the data within p, we need to dereference the outer pointer with `.*` or `:*` access
 
-(local px p.*.x)     ; px is PhysicalStorageBuffer* f32
-(local py (p :* :y)) ; py is PhysicalStorageBuffer* f32
+(local px p.*.x)     ; px is PhysicalStorageBuffer64* f32
+(local py (p :* :y)) ; py is PhysicalStorageBuffer64* f32
 
 ; Often you do want the indexed value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
 ; For example, only pointers-to-arrays can be dynamically indexed, while direct array indices must be constants.

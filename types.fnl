@@ -45,7 +45,7 @@
 (local pointer Type.pointer)
 (local struct Type.struct)
 
-(fn *P [elem] (Type.pointer elem StorageClass.PhysicalStorageBuffer))
+(fn *P [elem] (Type.pointer elem StorageClass.PhysicalStorageBuffer64))
 (fn *W [elem] (Type.pointer elem StorageClass.Workgroup))
 (fn *G [elem] (Type.pointer elem StorageClass.Generic))
 (fn *I [elem] (Type.pointer elem StorageClass.Input))

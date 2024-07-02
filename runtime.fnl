@@ -29,6 +29,7 @@
     : LoopControl
     : MemoryModel
     : MemorySemantics
+    : MemoryAccess
   } spirv)
 
 (local Env { :mt {} })
@@ -44,6 +45,8 @@
     (local env
         { :next-id 1
           :type-ids {}        ; id assigned to each unique type-info
+          :types {}           ; types 
+          :types-laid-out {}  ; set of types which have been given layout decorations already
           :node-ids {}        ; id assigned to each node
           :constant-ids {}    ; map[type] to map[summary] to constant node for deduplication
           :ext-inst-ids {}     ; map[str] to id for external instruction sets
@@ -289,14 +292,13 @@
 ; function structure
 ; .env         env
 ; .id          number      ; id of function itself
-; .op          Op          ; OpFunction
 ; .type        type-info   ; function type
+; .control     FunctionControl
 ; .params      list[node]  ; function parameter value references
 ; .opparams    list[Op]
 ; .opvariables list[Op]    ; Function scope variables
 ; .interface   table[id]   ; Global scope variables (needed for entrypoints)
 ; .blocks      list[block]
-; .scope       scope       ; root function scope
 ; .name        ?string
 
 (set Function.mt.__index Function)
@@ -309,11 +311,10 @@
       :type type
       :control (or control (FunctionControl))
       :params []
-      :blocks []
       :opparams []
       :opvariables []
       :interface {} ; referenced global variables
-      :scope { :variables {} }
+      :blocks []
       :name name
     })
   (setmetatable fun Function.mt)
@@ -384,15 +385,18 @@
   (self.env:type-id? type))
 
 (fn Block.type-id [self type]
-  (self:reify-type type))
+  (self.env:type-id type))
 
 (fn Block.reify-type [self type id]
-  (or (self.env:type-id? type)
-    (do
-      (when id (tset self.env.type-ids type.summary id))
-      (local new-type-id (or (type:reify self id) (self:fresh-id)))
-      (tset self.env.type-ids type.summary new-type-id)
-      new-type-id)))
+  (self.env:reify-type type id))
+
+; (fn Block.reify-type [self type id]
+;   (or (self.env:type-id? type)
+;     (do
+;       (when id (tset self.env.type-ids type.summary id))
+;       (local new-type-id (or (type:reify self id) (self:fresh-id)))
+;       (tset self.env.type-ids type.summary new-type-id)
+;       new-type-id)))
 
 (fn Block.node-id? [self node]
   (self.env:node-id? node))
@@ -468,16 +472,19 @@
   (self.env:type-id? type))
 
 (fn Runtime.type-id [self type]
-  (self:reify-type type))
+  (self.env:type-id type))
 
 (fn Runtime.reify-type [self type id]
-  (local ctx (or (self:current-ctx) self.env))
-  (or (ctx:type-id? type)
-    (do
-      (when id (tset self.env.type-ids type.summary id))
-      (local new-type-id (or (type:reify ctx id) (ctx:fresh-id)))
-      (tset self.env.type-ids type.summary new-type-id)
-      new-type-id)))
+  (self.env:reify-type type id))
+
+; (fn Runtime.reify-type [self type id]
+;   (local ctx (or (self:current-ctx) self.env))
+;   (or (ctx:type-id? type)
+;     (do
+;       (when id (tset self.env.type-ids type.summary id))
+;       (local new-type-id (or (type:reify ctx id) (ctx:fresh-id)))
+;       (tset self.env.type-ids type.summary new-type-id)
+;       new-type-id)))
 
 (fn Block.decorate-id [self id ...]
   (self.env:decorate-id id ...))
@@ -652,8 +659,8 @@
 
   (fn dsl.forward-pointer []
     (local id (runtime:fresh-id))
-    (runtime.env:instruction (Op.OpTypeForwardPointer id StorageClass.PhysicalStorageBuffer))
-    (Type.pointer nil StorageClass.PhysicalStorageBuffer id))
+    (runtime.env:instruction (Op.OpTypeForwardPointer id StorageClass.PhysicalStorageBuffer64))
+    (Type.pointer nil StorageClass.PhysicalStorageBuffer64 id))
 
   (fn dsl.finalize-forward-pointer [ptr]
     (assert (not= nil ptr.elem) "Forward pointer type was not filled in!")
@@ -726,6 +733,11 @@
     (local base (Node.aux.base-pointer ptr))
     (when (and (= :variable base.kind) (not= base.storage StorageClass.Function))
       (ctx:interface-id (ctx:node-id base))) ; already requested so won't change instructions
+
+    (local mem-operands
+      (if (= ptr.type.storage StorageClass.PhysicalStorageBuffer64)
+          (MemoryAccess (MemoryAccess.Aligned ptr.type.elem.alignment) mem-operands)
+          mem-operands))
 
     (ctx:instruction (Op.OpStore pid vid mem-operands)))
 

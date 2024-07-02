@@ -109,27 +109,45 @@
 
 
 (fn Type.layout [type env]
-  (case type.kind
-    :struct
-      (do 
-        (var offset 0)
-        (each [i field (ipairs type.field-types)]
-          (Type.layout field env)
-          (Type.aux.layout-struct-member type (- i 1) field env)
-          (local {: size : alignment} field)
-          (assert alignment (.. "Cannot layout struct with opaque member: " (. type.field-names i) field.summary))
-          (assert (or size (= i (# type.field-types)))
-            (.. "Cannot layout struct with unsized member if it is not last: " (. type.field-names i) field.summary))
-          (set offset (band (+ offset (- alignment 1)) (bnot (- alignment 1))))
-          (env:decorate-member type (- i 1) (Decoration.Offset offset))
-          (when size (set offset (+ offset size)))))
+  (when (not (. env.types-laid-out type.summary))
+    (tset env.types-laid-out type.summary true)
+    (case type.kind
+      :pointer
+        (when (= type.storage.tag :PhysicalStorageBuffer64)
+            (Type.layout type.elem env))
 
-    :array
-      (let [{: size : alignment} type.elem
-            size (assert size (.. "Cannot layout array with unsized element type: " type.elem.summary))
-            padded-size (band (+ size (- alignment 1)) (bnot (- alignment 1)))]
-        (Type.layout type.elem env)
-        (env:decorate-type type (Decoration.ArrayStride padded-size)))))
+      :struct
+        (do 
+          (var offset 0)
+          (each [i field (ipairs type.field-types)]
+            (Type.layout field env)
+            (Type.aux.layout-struct-member type (- i 1) field env)
+            (local {: size : alignment} field)
+            (assert alignment (.. "Cannot layout struct with opaque member: " (. type.field-names i) field.summary))
+            (assert (or size (= i (# type.field-types)))
+              (.. "Cannot layout struct with unsized member if it is not last: " (. type.field-names i) field.summary))
+            (set offset (band (+ offset (- alignment 1)) (bnot (- alignment 1))))
+            (env:decorate-member type (- i 1) (Decoration.Offset offset))
+            (when size (set offset (+ offset size)))))
+
+      :array
+        (let [{: size : alignment} type.elem
+              size (assert size (.. "Cannot layout array with unsized element type: " type.elem.summary))
+              padded-size (band (+ size (- alignment 1)) (bnot (- alignment 1)))]
+          (Type.layout type.elem env)
+          (env:decorate-type type (Decoration.ArrayStride padded-size))))))
+
+
+(fn Type.aux.logically-matches [self other]
+  (case (values self.kind other.kind)
+    (:array :array)
+      (and (= self.count other.count) (Type.aux.logically-matches self.elem other.elem))
+    (:struct :struct)
+      (and (= (# self.field-types) (# other.field-types))
+        (faccumulate [all true i 1 (# self.field-types)]
+          (let [t1 (. self.field-types i) t2 (. other.field-types i)]
+            (and all (or (= t1 t2) (Type.aux.logically-matches t1 t2))))))
+    _ false))
 
 
 ; Type construction with multiple inputs and non-node (constant) arguments
@@ -146,12 +164,14 @@
                     (Node.constant tycon (math.floor arg)))
               (error (.. "Cannot construct integer from argument: " (fennel.view arg)))))
               ; TODO: Allow specifying a particular bit pattern via a string?
+
     {:kind :float}
       (do (local arg ...)
           (if (node? arg) (Node.convert arg tycon)
               (= (type arg) :number) (Node.constant tycon arg)
               (error (.. "Cannot construct float from argument: " (fennel.view arg)))))
               ; TODO: Allow specifying a particular bit pattern via a string?
+
     {:kind :vector : elem : count}
       (do (local args [...])
           (local components [])
@@ -186,24 +206,50 @@
                           (icollect [_ v (ipairs component.constant) &into flat-components] v)
                           (table.insert flat-components component.constant)))
                       (Node.constant tycon flat-components))))))
-    {:kind :array : elem : count}
+
+    {:kind :array : elem : ?count}
       (do (local args [...])
           (local arg-count (# args))
-          (assert (or (= arg-count 1) (= arg-count count)) "Array must be constructed from a single table or unpacked sequence")
+          (when ?count
+            (assert (or (= arg-count 1) (= arg-count ?count)) "Array must be constructed from a single table or unpacked sequence"))
+          (if (= arg-count 1)
+            (let [arg (Node.aux.autoderef (. args 1))]
+              (if (node? arg)
+                (if (= arg.type tycon) arg
+                    (Type.aux.logically-matches arg.type tycon) (Node.aux.op :OpCopyLogical tycon arg)
+                    (error (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary)))
+                (Type.aux.array-from-parts tycon arg)))
+            (Type.aux.array-from-parts tycon args)))
+
+    {:kind :matrix : elem : rows : cols}
+      (do (local args [...])
+          (local arg-count (# args))
+          (assert (or (= arg-count 1) (= arg-count cols))
+            "Matrix must be constructed from a single table or unpacked sequence of columns")
           (local args (if (= arg-count 1) (. args 1) args))
-
-          (local components
-            (icollect [_ arg (ipairs args)]
-              (elem arg)))
-          (local component-count (# components))
-
-          (when count
-            (assert (= component-count count) (.. "Incorrect number of arguments to construct array: " component-count tycon.summary)))
-
-          (local common-kind (Node.aux.common-node-kind-of components))
-          (case common-kind
-            :constant (Node.constant (Type.array elem component-count) components) ; we know count, no need for runtime array.
-            _ (Node.composite tycon components common-kind)))
+          (if (and (= arg-count 1) (node? args))
+            (if (= tycon args.type) args
+                (= :matrix args.kind)
+                  (Type.aux.matrix-from-parts tycon
+                    (fcollect [i 0 (- args.cols 1)] (args i)))
+                (Type.aux.matrix-from-parts args))
+            (Type.aux.matrix-from-parts args)))
+    
+    {:kind :struct : field-types : field-names}
+      (do (local args [...])
+          (local arg-count (# args))
+          (assert (or (= arg-count 1) (= arg-count (# field-types)))
+            "Struct must be constructed from a single table or sequence of field values")
+          (if (= (# args) 1)
+            (let [arg (Node.aux.autoderef (. args 1))]
+              (assert (= (type arg) :table) (.. "Struct must be constructed from table, got: " (tostring arg)))            
+              (if (node? arg)
+                (if (= arg.type tycon) arg
+                    (Type.aux.logically-matches arg.type tycon) (Node.aux.op :OpCopyLogical tycon arg)
+                    (error (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary)))
+                (Type.aux.struct-from-parts tycon arg)))
+            (Type.aux.struct-from-parts tycon args)))
+      
     other
       (do (local arg ...)
           (assert (node? arg) (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary))
@@ -213,16 +259,47 @@
                  (= arg.type.elem tycon)) (Node.deref arg)
             (error (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary))))))
 
-(fn Type.clone [info]
-  (local shallowcopy
-    (collect [k v (pairs info)] k v))
-  (case shallowcopy.instance
-    nil (set shallowcopy.instance 1)
-    n   (set shallowcopy.instance (+ n 1)))
-  shallowcopy)
+
+(fn Type.aux.array-from-parts [tycon parts]
+  (local {: count : elem} tycon)
+  (local components
+    (icollect [_ arg (ipairs parts)]
+      (elem arg)))
+  (local component-count (# components))
+
+  (when count
+    (assert (= component-count count) (.. "Incorrect number of arguments to construct array: " component-count tycon.summary)))
+
+  (local common-kind (Node.aux.common-node-kind-of components))
+  (case common-kind
+    :constant (Node.constant (Type.array elem component-count) components) ; we know count, no need for runtime array.
+    _ (Node.composite tycon components common-kind)))
+
+
+(fn Type.aux.matrix-from-parts [tycon parts]
+  (local {: elem : rows} tycon)
+  (local column (Type.vector elem rows))
+  (local components
+    (icollect [_ arg (ipairs parts)]
+      (column arg)))
+
+  (local common-kind (Node.aux.common-node-kind-of components))
+  (case common-kind
+    :constant (Node.constant tycon components)
+    _ (Node.composite tycon components common-kind)))
+
+
+(fn Type.aux.struct-from-parts [tycon parts]
+  (local {: field-types : field-names} tycon)
+  (let [fields (icollect [i name (ipairs tycon.field-names)]
+                ((. tycon.field-types i) (or (. parts name) (. parts i))))
+        common-kind (Node.aux.common-node-kind-of fields)]
+    ; TODO: support constant folded struct values properly
+    (Node.composite tycon fields common-kind)))
+
 
 ; forced id parameter necessary to ensure forward pointer declarations are
-; linked properly, e.g. for types which reference a physicalstoragebuffer* to themselves.
+; linked properly, e.g. for types which reference a PhysicalStorageBuffer64* to themselves.
 (fn Type.reify [self ctx id]
   (local id (or id (ctx:fresh-id)))
   (case self.kind
@@ -251,6 +328,7 @@
     :pointer 
       (when (or (= nil self.forward)
               (= id self.forward))
+        (Type.layout self ctx)
         (ctx:instruction (Op.OpTypePointer id self.storage (ctx:type-id self.elem))))
 
     :function (ctx:instruction
@@ -455,7 +533,7 @@
 
 (fn Type.pointer [elem storage forward]
   (local (opaque size alignment)
-    (if (= storage StorageClass.PhysicalStorageBuffer)
+    (if (= storage StorageClass.PhysicalStorageBuffer64)
         (values false 8 8)
         true))
   (Type.new
@@ -736,7 +814,7 @@
   (ctx:instruction op)
   cid)
 
-;
+
 (fn Node.aux.adjust-constant-value [ty value]
   ; (print :adjust-constant-value ty.summary value)
   (local value (if (node? value) value.constant value))

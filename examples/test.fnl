@@ -7,6 +7,7 @@
     : Op
     : Decoration
     : BuiltIn
+    : MemoryAccess
   } spirv)
 
 (capability
@@ -39,6 +40,13 @@
   albedo u32
   normal u32
   roughness u32
+})
+
+(type* Data {
+  vector (vec3 f32)
+  matrix (mat3x3 f32)
+  array [10 f32]
+  pointer [*P { x f32 y f32 }]
 })
 
 (ref-types*
@@ -379,7 +387,47 @@
      (fetch storage-im-Cube-array uv-Cube-array)))
 
 
+(fn* test-indexing void [(data Data) (other-pointer-value [*P { x f32 y f32 }] Aliased)]
+  (var* data Data := data)
 
+  (local v data.vector) ; Field access can use `.` in many cases
+  (local v (data :vector)) ; Field access can also be written `(struct :field)` though. Allows computing field name at compile time.
+
+  (local v0 (v 0)) ; Vector indexing is written `(vector index)`. indexing is zero-based (per SPIRV).
+  (local vX v.x) ; Swizzling allows accessing vector elements by other names: xyzw, rgba, or 0123
+  (local vXY (v :xy)) ; Swizzles can also be written like this.
+
+  (local m00  (data :matrix 0 0))  ; When using the list style indexing, we can chain multiple accesses together to get deeper elements.
+  (local m0yz (data.matrix 0 :yz)) ; Matrix indexing returns columns, which we can then swizzle if we desire.
+
+  ; Note: p is a Function* PhysicalStorageBuffer64* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
+  (local p data.pointer) 
+
+  ; Felvine auto-dereferences one level of pointer indirection, but here we have two!
+  ; To access the data within p, we need to dereference the outer pointer with `.*` or `:*` access
+
+  (local px p.*.x)     ; px is PhysicalStorageBuffer64* f32
+  (local py (p :* :y)) ; py is PhysicalStorageBuffer64* f32
+
+  ; Often you do want the indexed value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
+  ; For example, only pointers-to-arrays can be dynamically indexed, while direct array indices must be constants.
+  ; Usually the default semantics will be the ones you want though, and indexing will preserve the outermost pointer.
+
+  (local a0-ptr (data.array 0)) ; Function* f32, using dynamic indexing (happens to be constant here).
+  (local a0 (data.array.* 0)) ; f32, using constant indexing. Worse choice since it technically copies the array.
+
+  ; Felvine always auto-dereferences when needed so usually you will not need to do this, but all these are valid and equivalent:
+  (local b (+ a0-ptr.* 10))
+  (local b (+ a0-ptr 10))
+  (local b (+ a0 10))
+
+  ; Because the leading pointer type is preserved, the SAME indexing syntax is used for storing to variables/buffers etc.
+  (set* data.vector data.vector.zyx)
+  (set* (data :array 5) v0)
+
+  (set* data.pointer.* { :x 10 :y 10 }) ; This is where the trailing * also matters!
+  (set* data.pointer other-pointer-value) ; Without it, we are setting the pointer itself, not its contents.
+)
 
 
 (fn* test-types f32
