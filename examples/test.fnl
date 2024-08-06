@@ -403,12 +403,12 @@
   ; Note: p is a Function* PhysicalStorageBuffer64* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
   (local p data.pointer) 
 
-  ; Felvine auto-dereferences one level of pointer indirection, but here we have two!
-  ; To access the data within p, we need to dereference the outer pointer with `.*` or `:*` access
+  ; Felvine auto-dereferences pointer indirections, here we have two!
+  ; So all of the below are valid and equivalent, such that px is PhysicalStorageBuffer64* f32
 
-  (local px p.*.x)     ; px is PhysicalStorageBuffer64* f32
-  (local px p.x)       ; px is PhysicalStorageBuffer64* f32
-  (local py (p :* :y)) ; py is PhysicalStorageBuffer64* f32
+  (local px p.x) 
+  (local px p.*.x)
+  (local px (p :* :x)) 
 
   ; Often you do want the indexed value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
   ; For example, only pointers-to-arrays can be dynamically indexed, while direct array indices must be constants.
@@ -426,7 +426,7 @@
   (set* data.vector data.vector.zyx)
   (set* (data :array 5) v0)
 
-  (set* data.pointer.* { :x py :y px }) ; This is where the trailing * also matters!
+  (set* data.pointer.* { :x px :y px }) ; This is where the trailing * also matters!
   (set* data.pointer other-pointer-value) ; Without it, we are setting the pointer itself, not its contents.
 )
 

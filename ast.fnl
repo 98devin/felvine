@@ -2955,7 +2955,13 @@
 (fn node-reify-function-call [self ctx]
   (local [func args] self.operands)
   (local tid (ctx:type-id self.type))
-  (local arg-ids (icollect [_ arg (ipairs args)] (ctx:node-id arg)))
+  (local arg-ids [])
+  (each [i arg (ipairs args)]
+    (table.insert arg-ids (ctx:node-id arg))
+    (when (= arg.type.kind :pointer)
+      (local base (Node.aux.base-pointer arg))
+      (when (and (= :variable base.kind) (not= base.storage StorageClass.Function))
+        (ctx:interface-id (ctx:node-id base))))) ; already requested so won't change instructions
   (local id (ctx:fresh-id))
   (ctx:instruction (Op.OpFunctionCall tid id func.function.id arg-ids))
   (each [iid _ (pairs func.function.interface)]

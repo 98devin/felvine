@@ -102,6 +102,74 @@ Other types of values cannot be constructed like this and must be initialized by
 | Vector and Matrix operations | `(dot v1 v2)` `(normalize v)` `(det m)` `(determinant m)` `(invert m)` `(transpose m)` | `dot(v1, v2)` `normalize(v)` `determinant(m)` `determinant(m)` `inverse(m)` `transpose(m)` |
 
 
+## Declarations and special syntax
+
+### Variables
+
+SPIRV Variables are declared in Felvine using the `var*` construct. It supports providing an initializer, specifying the storage class,
+and listing any number of optional Decorations.
+
+The simplest form of variable just requires a name and a type, and will default to a Function storage variable of undefined initial value:
+`(var* foo i32)`
+
+If we want to provide a different initial value, it can be listed after a `:=` sign in the declaration. The value given will automatically
+be cast to the type of the variable being declared to ensure consistency: `(var* foo i32 := 10)`
+
+Variables are also how we access inputs/outputs of shaders, and certain built-ins. In these cases the storage class default of Function
+will be inappropriate, so a different class can be specified. Decorations (like `BuiltIn` and `Location`) provide the means of specifying the purpose and linkage of these variables in different cases:
+
+```fennel
+(var* vertexColor (vec4 f32) Input (Location 0))   ; first vertex attribute input
+(var* fragColor   (vec4 f32) Output (Location 0))  ; first fragment attachment output
+(var* vertexIndex u32 Input (BuiltIn VertexIndex)) ; built-in index variable
+(var* cullPrimitive [N bool] Output (BuiltIn CullPrimitiveEXT) PerPrimitiveEXT) ; e.g. mesh shader culling use case
+```
+
+Only variables of the `Function` or `Private` class should have initializers. Furthermore, any storage class other than `Function` (i.e. including `Private`) is considered to be allocated at the global scope, and so must have a constant initializer if one is given. You do not need to declare such variables at the file scope in Felvine, but they will eventually be moved there in the final SPIRV.
+
+The initializer, storage class, and decorations can come in any order relative to each other,
+but only one initializer and one storage class can be provided at most.
+
+### Functions
+
+SPIRV Functions are declared in a way that mirrors normal Fennel functions, but with the addition of type information.
+The function return type is given immediately after the name, and each input parameter name must be accompanied by a type for that parameter. Vararg functions are not supported.
+
+The body of the function can be a sequence of statements/expressions. The last expression is returned as the result.
+The result value is cast to the return type of the function in the event that it does not already match.
+
+```
+(fn* quat_mult (vec3 f32) [(q (vec4 f32)) (v (vec3 f32))]
+    (var c (cross v q.xyz))
+    (set c (cross (+ c (* q.w v)) q.xyz))
+    (+ v (* 2.0 c)))
+```
+
+Function overloading (based on the parameter types) is not directly supported in Felvine but is not hard to write at user level.
+A fennel function can analyze the types of the passed parameters and dispatch to the appropriate procedure if this logic is desired.
+Similarly, generic/templated functions are not included, but are easy to implement in principle with memoization and a wrapper function which will use `fn*` to declare a new SPIRV function only if it has not already been instantiated for the desired type(s).
+
+### Uniforms
+
+todo
+
+### Specialization Constants
+
+SPIRV Specialization constants are declared using the `const*` form, analogously to `var*`. However, as they are
+constant values, they cannot be given a storage class. They _must_ be initialized; this acts as the default value
+for the specialization constant if a different one is not provided before running the shader. They also must be decorated with the `SpecId` decoration to uniquely identify the variable to the Vulkan API.
+
+Note that in Felvine, it is easier (compared to GLSL) to use specialization constants for purposes like configuring the workgroup size. There is no special syntax for it, the declared constant can simply be used with the `LocalSizeId` execution mode when declaring an entrypoint.
+
+As in SPIRV, specialization constants can only be scalars. However, composite specialization constants can be
+constructed from these scalars with the normal expression syntax.
+
+```
+(const* LOCAL_SIZE_X u32 := 8 (SpecId 0))
+(const* LOCAL_SIZE_Y u32 := 8 (SpecId 1))
+(local LOCAL_SIZE_XY ((vec2 u32) LOCAL_SIZE_X LOCAL_SIZE_Y)) ; still computed as a spec constant for constant folding
+```
+
 ### Indexing and field access
 
 Retrieving elements of vectors, matrices, arrays, and structs is an extremely common operation and can be done in a consistent way in Felvine.
@@ -134,11 +202,12 @@ For example:
 ; Note: p is a Function* PhysicalStorageBuffer64* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
 (local p data.pointer) 
 
-; Felvine auto-dereferences one level of pointer indirection, but here we have two!
-; To access the data within p, we need to dereference the outer pointer with `.*` or `:*` access
+; Felvine auto-dereferences pointer indirections, here we have two!
+; So all of the below are valid and equivalent, such that px is PhysicalStorageBuffer64* f32
 
-(local px p.*.x)     ; px is PhysicalStorageBuffer64* f32
-(local py (p :* :y)) ; py is PhysicalStorageBuffer64* f32
+(local px p.x) 
+(local px p.*.x)
+(local px (p :* :x))
 
 ; Often you do want the indexed value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
 ; For example, only pointers-to-arrays can be dynamically indexed, while direct array indices must be constants.
@@ -147,17 +216,17 @@ For example:
 (local a0-ptr (data.array 0)) ; Function* f32, using dynamic indexing (happens to be constant here).
 (local a0 (data.array.* 0)) ; f32, using constant indexing. Worse choice since it technically copies the array.
 
-; Felvine always auto-dereferences when needed so usually you will not need to do this, but all these are valid and equivalent:
+; Felvine auto-dereferences when needed so usually you will not need to do this, but all these are valid and equivalent:
 (local b (+ a0-ptr.* 10))
 (local b (+ a0-ptr 10))
 (local b (+ a0 10))
 
-; Because the leading pointer type is preserved, the SAME indexing syntax is used for storing to variables/buffers etc.
+; Because the leading pointer type is preserved, the SAME indexing syntax is used for storing values to variables/buffers etc.
 (set* data.vector data.vector.zyx)
 (set* (data :array 5) v0)
 
-(set* data.pointer.* { :x 10 :y 10 }) ; This is where the trailing * also matters!
-(set* data.pointer other-pointer-value) ; Without it, we are setting the pointer itself, not its contents.
+(set* data.pointer other-pointer-value) ; Without a trailing .*, we are setting the pointer itself here, not its contents.
+(set* data.pointer.* { :x px :y px }) ; Note that px is also implicitly dereferenced when casting it to f32 here.
 
 ```
 
