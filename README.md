@@ -138,7 +138,7 @@ The function return type is given immediately after the name, and each input par
 The body of the function can be a sequence of statements/expressions. The last expression is returned as the result.
 The result value is cast to the return type of the function in the event that it does not already match.
 
-```
+```fennel
 (fn* quat_mult (vec3 f32) [(q (vec4 f32)) (v (vec3 f32))]
     (var c (cross v q.xyz))
     (set c (cross (+ c (* q.w v)) q.xyz))
