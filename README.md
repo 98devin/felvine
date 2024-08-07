@@ -104,6 +104,56 @@ Other types of values cannot be constructed like this and must be initialized by
 
 ## Declarations and special syntax
 
+### Capabilities and Extensions
+
+SPIRV requires that the use of extension features be indicated by listing "capabilities" and "extensions" at the beginning of the module.
+
+To declare capabilities, simply list their name in a statement of the form `(capability <name1> <name2> ...)`. The name may be a plain identifier or a string literal. For extensions, use `(extension <name1> <name2> ...)` as necessary; note that the name of extensions must be a string literal.
+
+For example:
+
+```fennel
+(capability
+  Shader
+  SparseResidency
+  SampledBuffer
+  ImageBuffer
+  Image1D
+  ImageCubeArray
+  ImageGatherExtended
+  Sampled1D
+  Int8
+  Int16
+  Int64
+  Float64
+  GroupNonUniformArithmetic
+  GroupNonUniformClustered
+  PhysicalStorageBufferAddresses)
+
+(extension
+  :SPV_EXT_descriptor_indexing)
+```
+
+A `capability` or `extension` statement can be placed anywhere, not only the top level, although all such statements apply globally to the entire module. All entrypoints in the module also share the set of declared capabilities.
+
+When declaring a capability or extension, any other prerequisite extensions or capabilities
+are implicitly also declared. For example, `Shader` implies `Matrix`.
+
+To _conditionally_ check for the presence of a capability or extension, the `supported?`
+function can be used. In this way the Felvine shader can compute at compile time a different implementation path or set of capabilities depending on the target environment it will be run in. For example:
+
+```fennel
+(when (supported? :SPV_EXT_mesh_shader) ; check for extension availability
+  (capability :MeshShadingEXT)) ; declare feature use
+```
+
+NB: By default, Felvine does not know what the target environment support for features or extensions is, and will always return `true` for `supported?`. To configure this, the command line offers the ability to specify exactly the allowable set of
+- SPIRV capabilities and/or extensions (`--spv-features`)
+- Vulkan features and/or extensions (`--vk-features`), and 
+- Vulkan target version (`--vk-version`)
+
+When specifying these, Felvine can automatically infer support for SPIRV features from the relevant Vulkan extensions or features that are available. If you are running Felvine at runtime, these can correspond to the _actual_ available set of extensions in the environment.
+
 ### Variables
 
 SPIRV Variables are declared in Felvine using the `var*` construct. It supports providing an initializer, specifying the storage class,
@@ -122,6 +172,7 @@ will be inappropriate, so a different class can be specified. Decorations (like 
 (var* vertexColor (vec4 f32) Input (Location 0))   ; first vertex attribute input
 (var* fragColor   (vec4 f32) Output (Location 0))  ; first fragment attachment output
 (var* vertexIndex u32 Input (BuiltIn VertexIndex)) ; built-in index variable
+(var* sharedMemory {data [1024 f32]} Workgroup)  ; workgroup-shared memory
 (var* cullPrimitive [N bool] Output (BuiltIn CullPrimitiveEXT) PerPrimitiveEXT) ; e.g. mesh shader culling use case
 ```
 
@@ -129,6 +180,53 @@ Only variables of the `Function` or `Private` class should have initializers. Fu
 
 The initializer, storage class, and decorations can come in any order relative to each other,
 but only one initializer and one storage class can be provided at most.
+
+### Uniforms and Push Constants
+
+The other most common use for variables in SPIRV is to bind inputs from descriptor sets.
+This can mostly be done manually with `var*` assuming the correct decorations are included, but this has some downsides and pitfalls
+such as not automatically generating the appropriate type layout for buffer blocks, and requiring additional type definitions.
+
+Therefore Felvine offers some very convenient alternatives. Declaring a uniform is as simple as:
+```fennel
+(uniform (S B) <Name> <Type> <...Decorations...>) ; for images (including texel buffers) or uniform buffers
+(buffer  (S B) <Name> <Type> <...Decorations...>) ; for storage buffers
+(push-constant <Name> <Type>) ; for push constants (Type must be a struct)
+```
+
+Where `S` and `B` denote the descriptor set and binding number respectively. `Type` can be a struct to represent a buffer, or it can be an opaque type like an image or acceleration structure, or an array of one of these. 
+
+For example:
+
+```fennel
+(type* Material {
+  albedo u32
+  normal u32
+  roughness u32
+})
+
+(buffer (0 0) MaterialData {
+  materials [Material]
+} NonWritable)
+
+(uniform (0 1) MaterialTextures [1024 (sampled-image :2D)])
+
+(buffer (0 2) GeometryData [128 {
+  positions [(vec3 f32)]
+}])
+
+(push-constant CameraData { 
+  position (vec3 f32)
+  transform ((mat4x3 f32) RowMajor)
+  inv-transform (mat3x4 f32)
+  fov f32
+})
+```
+
+After such a declaration, the values can simply be accessed by name, e.g. `CameraData.position` or `(GeometryData 63 :positions 15)`.
+Syntax for indexing is described in more detail later.
+
+Usages of all global variables, including those defined as uniforms or push constants, are automatically tracked and linked to each entry point that uses them in the final SPIRV. Keep in mind therefore that only one push constant may be statically used in this way per entrypoint. Also, like `var*`, although they are considered globals due to their storage class, uniforms do not need to be declared at the top level, so they can be generated and returned from a compile time function if needed.
 
 ### Functions
 
@@ -146,12 +244,13 @@ The result value is cast to the return type of the function in the event that it
 ```
 
 Function overloading (based on the parameter types) is not directly supported in Felvine but is not hard to write at user level.
-A fennel function can analyze the types of the passed parameters and dispatch to the appropriate procedure if this logic is desired.
+A Fennel function can analyze the types of the passed parameters and dispatch to the appropriate procedure if this logic is desired.
 Similarly, generic/templated functions are not included, but are easy to implement in principle with memoization and a wrapper function which will use `fn*` to declare a new SPIRV function only if it has not already been instantiated for the desired type(s).
 
-### Uniforms
+Note that even if you do not _call_ the function created with `fn*`, it will still appear in the final SPIRV. This is useful
+if you want to export or link the function definition between multiple SPIRV modules, but otherwise the definition can be stripped
+by `spirv-opt` if necessary.
 
-todo
 
 ### Specialization Constants
 
@@ -227,10 +326,29 @@ For example:
 
 (set* data.pointer other-pointer-value) ; Without a trailing .*, we are setting the pointer itself here, not its contents.
 (set* data.pointer.* { :x px :y px }) ; Note that px is also implicitly dereferenced when casting it to f32 here.
-
 ```
 
+### Reference Types (or self-referential types)
 
+SPIRV supports using pointers in the `PhysicalStorageBuffer` storage class as bindless
+accessors to buffer memory when using the `bufferDeviceAddress` vulkan feature.
+
+This enables indirection in data structures, as well, in which case often the data types
+being declared could be self referential or mutually recursive in some way. Felvine provides
+the `ref-types*` declaration to more easily define such families of types all at once.
+
+For example:
+
+```fennel
+(ref-types*
+  Node { left Node right Node content (mat4 f32) }
+  Tree { root Node first-child Node last-child Node })
+```
+
+After this definition, `Tree` and `Node` will refer to pointer types with an element type
+of the struct provided. Because they are pointers, it is ok for the structs to contain references to the type name itself as shown. The types can also be used with pointer arithmetic. To access the internal struct type, use e.g. `Node.elem`.
+
+This syntax does not support inline decorations applied to the types, but this can be performed after the fact using `decorate` or `decorate-member`.
 
 ## Motivation
 
