@@ -140,8 +140,9 @@ Other types of values (images, functions, etc.) cannot be constructed like this 
 | Absolute value/Sign | `(abs x)` `(sign x)` | `abs(x)` `sign(x)` |
 | Unit conversions | `(degrees-to-radians deg)` `(radians-to-degrees rad)` | `radians(deg)` `degrees(rad)` |
 | Trigonometry | `(sin theta)` `(cos theta)` `(tan theta)` `(arcsin theta)` `(arccos theta)` `(arctan theta)` `(sinh theta)` `(cosh theta)` `(tanh theta)` `(arcsinh theta)` `(arccosh theta)` `(arctanh theta)` | `sin(theta)` `cos(theta)` `tan(theta)` `asin(theta)` `acos(theta)` `atan(theta)` `sinh(theta)` `cosh(theta)` `tanh(theta)` `asinh(theta)` `acosh(theta)` `atanh(theta)` |
-| Other floating operations | `(exp x)` `(exp2 x)` `(log x)` `(ln x)` `(log2 x)` `(sqrt x)` `(inverse-sqrt x)` | `exp(x)` `exp2(x)` `log(x)` `log(x)` `log2(x)` `sqrt(x)` `inversesqrt(x)` |
+| Other floating operations | `(exp x)` `(exp2 x)` `(log x)` `(ln x)` `(log2 x)` `(sqrt x)` `(inverse-sqrt x)` `(ldexp l exp)` `(local (l exp) (frexp x))` | `exp(x)` `exp2(x)` `log(x)` `log(x)` `log2(x)` `sqrt(x)` `inversesqrt(x)` `ldexp(l, exp)` `l = frexp(x, exp)` |
 | Vector and Matrix operations | `(dot v1 v2)` `(distance v1 v2)` `(norm v)` `(length v)` `(normalize v)` `(face-forward v i ref)` `(reflect v n)` `(refract v n eta)` `(det m)` `(determinant m)` `(invert m)` `(transpose m)` | `dot(v1, v2)` `distance(v1, v2)` `length(v)` `length(v)` `normalize(v)` `faceforward(v, i, ref)` `reflect(v, n)` `refract(v, n, eta)` `determinant(m)` `determinant(m)` `inverse(m)` `transpose(m)` |
+| Floating pack/unpack operations | `(pack-unorm2x16 v)` `(pack-snorm2x16 v)` `(pack-half2x16 v)` `(pack-unorm4x8 v)` `(pack-snorm4x8 v)` `(pack-double2x32 v)` `(unpack-unorm2x16 i)` `(unpack-snorm2x16 i)` `(unpack-half2x16 i)` `(unpack-unorm4x8 i)` `(unpack-snorm4x8 i)` `(unpack-double2x32 d)` | `packUnorm2x16(v)` `packSnorm2x16(v)` `packHalf2x16(v)` `packUnorm4x8(v)` `packSnorm4x8(v)` `packDouble2x32(v)` `unpackUnorm2x16(i)` `unpackSnorm2x16(i)` `unpackHalf2x16(i)` `unpackUnorm4x8(i)` `unpackSnorm4x8(i)` `unpackDouble2x32(d)` | 
 
 
 ## Declarations and special syntax

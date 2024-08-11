@@ -602,6 +602,19 @@
       :| Node.|
       :& Node.&
 
+      :pack-snorm4x8 Node.pack-snorm4x8
+      :pack-unorm4x8 Node.pack-unorm4x8
+      :pack-snorm2x16 Node.pack-snorm2x16
+      :pack-unorm2x16 Node.pack-unorm2x16
+      :pack-half2x16 Node.pack-half2x16
+      :pack-double2x32 Node.pack-double2x32
+      :unpack-snorm2x16 Node.unpack-snorm2x16
+      :unpack-unorm2x16 Node.unpack-unorm2x16
+      :unpack-half2x16 Node.unpack-half2x16
+      :unpack-snorm4x8 Node.unpack-snorm4x8
+      :unpack-unorm4x8 Node.unpack-unorm4x8
+      :unpack-double2x32 Node.unpack-double2x32
+
       : package
       : require })
 

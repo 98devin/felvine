@@ -1289,6 +1289,14 @@
       (out-type lhs)
       (out-type rhs))))
 
+(fn node-glsl-pack-op
+  [{ : in-type
+     : out-type 
+     : op }]
+  (fn [v]
+    (local v (Node.aux.autoderef v))
+    (Node.glsl.op op out-type (in-type v))))
+
 ;
 ; Constant propagation implementations
 ; NOTE: should review to ensure that Node.constant handles wrapping etc. in a way consistent with spirv.
@@ -1696,6 +1704,10 @@
 (local u32 (Type.int 32 false))
 (local f32 (Type.float 32))
 (local i32 (Type.int 32 true))
+(local u64 (Type.int 64 false))
+(local f64 (Type.float 64))
+(local i64 (Type.int 64 true))
+
 (local const-offsets-type (Type.array (Type.vector i32 2) 4))
 
 (local image-coord-dims
@@ -2898,7 +2910,47 @@
   (Node.glsl.op :Ldexp v-type (v-type v) (exp-type exp)))
 
 ;
-; 
+; pack/unpack operations
+;
+
+(set Node.pack-snorm4x8
+  (node-glsl-pack-op { :op :PackSnorm4x8 :in-type (Type.vector f32 4) :out-type u32 }))
+
+(set Node.pack-unorm4x8
+  (node-glsl-pack-op { :op :PackUnorm4x8 :in-type (Type.vector f32 4) :out-type u32 }))
+
+(set Node.pack-snorm2x16
+  (node-glsl-pack-op { :op :PackSnorm2x16 :in-type (Type.vector f32 2) :out-type u32 }))
+
+(set Node.pack-unorm2x16
+  (node-glsl-pack-op { :op :PackUnorm2x16 :in-type (Type.vector f32 2) :out-type u32 }))
+
+(set Node.pack-half2x16
+  (node-glsl-pack-op { :op :PackHalf2x16 :in-type (Type.vector f32 2) :out-type u32 }))
+
+(set Node.pack-double2x32
+  (node-glsl-pack-op { :op :PackDouble2x32 :in-type (Type.vector u32 2) :out-type f64 }))
+
+(set Node.unpack-snorm2x16
+  (node-glsl-pack-op { :op :UnpackSnorm2x16 :in-type u32 :out-type (Type.vector f32 2) }))
+
+(set Node.unpack-unorm2x16
+  (node-glsl-pack-op { :op :UnpackUnorm2x16 :in-type u32 :out-type (Type.vector f32 2) }))
+
+(set Node.unpack-half2x16
+  (node-glsl-pack-op { :op :UnpackHalf2x16 :in-type u32 :out-type (Type.vector f32 2) }))
+
+(set Node.unpack-snorm4x8
+  (node-glsl-pack-op { :op :UnpackSnorm4x8 :in-type u32 :out-type (Type.vector f32 4) }))
+  
+(set Node.unpack-unorm4x8
+  (node-glsl-pack-op { :op :UnpackUnorm4x8 :in-type u32 :out-type (Type.vector f32 4) }))
+  
+(set Node.unpack-double2x32
+  (node-glsl-pack-op { :op :UnpackDouble2x32 :in-type f64 :out-type (Type.vector u32 2) }))
+
+;
+; internal node types required to support syntax and basic features
 ;
 
 (fn node-reify-returnvalue [self ctx]

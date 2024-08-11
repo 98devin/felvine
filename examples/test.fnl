@@ -460,6 +460,18 @@
   (dot a a))
 
 
+(fn* test-pack-unpack f64 [(v (vec2 f32)) (w (vec4 f32)) (d f64)]
+  (local u1
+    (+ (pack-unorm2x16 v)
+       (pack-snorm2x16 v)
+       (pack-half2x16 v)))
+  (local u2
+    (+ (pack-unorm4x8 w)
+       (pack-snorm4x8 w)))
+  (local u (+ ((vec2 u32) u1 u2) (unpack-double2x32 d)))
+  (pack-double2x32 u))
+
+
 (entrypoint main Fragment [OriginUpperLeft]
 
   (local pos (+ Position
