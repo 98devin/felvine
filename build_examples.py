@@ -47,9 +47,10 @@ def validate(files: List[Path], optimize=False):
     for file in files:
         try:
             if optimize:
-                subprocess.run(["spirv-opt", "--target-env", "vulkan1.3", "--scalar-block-layout", "-O", file, "-o", file.with_suffix(".opt.spv")]).check_returncode()
+                result = subprocess.run(["spirv-opt", "--target-env=vulkan1.3", "--scalar-block-layout", str(file), "-O", "-o", str(file.with_suffix(".opt.spv"))])
             else:
-                subprocess.run(["spirv-val", "--target-env", "vulkan1.3", "--scalar-block-layout", file]).check_returncode()
+                result = subprocess.run(["spirv-val", "--target-env", "vulkan1.3", "--scalar-block-layout", str(file)])
+            result.check_returncode()
         except subprocess.CalledProcessError:
             failure_cases.append(file)
 

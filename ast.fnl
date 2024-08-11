@@ -250,7 +250,7 @@
                     (error (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary)))
                 (Type.aux.struct-from-parts tycon arg)))
             (Type.aux.struct-from-parts tycon args)))
-      
+    
     other
       (do (local arg ...)
           (assert (node? arg) (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary))
@@ -339,7 +339,6 @@
         (icollect [_ t (ipairs self.params)]
           (ctx:type-id t))))
       
-    ; TODO: emit member offset information
     :struct
       (do (ctx:instruction
             (Op.OpTypeStruct id (icollect [_ t (ipairs self.field-types)] (ctx:type-id t))))
@@ -817,20 +816,21 @@
 
 
 (fn Node.aux.adjust-constant-value [ty value]
-  ; (print :adjust-constant-value ty.summary value)
   (local value (if (node? value) value.constant value))
+  ; (print :Node.aux.adjust-constant-value ty value)
   (case ty
     {:kind :int : signed : bits}
       (if (> bits 62)
-        (if (or signed (>= value 0)) (assert (math.tointeger value) "Cannot represent integer")
-            (error "Cannot represent unsigned integer"))
+        (if (or signed (>= value 0))
+            (assert (math.tointeger (math.floor value)) (.. "Cannot represent as integer: " value))
+            (error (.. "Cannot represent as unsigned integer: " value)))
         (let [max-value (^ 2 bits)
               sign (if (>= value 0) 1 -1)
               wrapped-value (% (math.modf value) (* sign max-value))]
           (assert 
             (math.tointeger
               (if (and (not signed) (< wrapped-value 0)) (+ wrapped-value max-value)
-                wrapped-value)) "Cannot represent integer")))
+                wrapped-value)) (.. "Cannot represent as integer: " value))))
     {:kind :float}
       value ; nothing really needs to happen since all numbers can be converted to floats
     (where (or {:kind :vector : elem} {:kind :array : elem}))
@@ -841,7 +841,7 @@
     ))
 
 (fn Node.constant [type value]
-  ; (print :Node.constant type.summary value)
+  ; (print :Node.constant type.summary (if (node? value) value (fennel.view value)))
   (if (node? value)
     (if (= value.type type) value
       (Node.new
@@ -899,6 +899,10 @@
 
 (fn node-reify-load [self ctx]
   (local [source memory-ops] self.operands)
+
+  (assert (not source.type.elem.opaque)
+    (.. "Cannot load unsized type from memory: " source.type.summary))
+
   (local tid (ctx:type-id self.type))
   (local source-id (ctx:node-id source))
   (local id (ctx:fresh-id))
@@ -929,21 +933,10 @@
         })
     _ (error "Cannot dereference non-pointer value")))
 
-(fn node-reify-passthrough [self ctx]
-  (local id (ctx:node-id (. self.operands 1)))
-  id)
-
-(fn Node.aux.passthrough-convert [self type]
+(fn Node.aux.bitcast-convert [self type]
   (if (= self.kind :constant)
     (Node.constant type self.constant)
-    (Node.new
-      { :kind :expr
-        :type type
-        :operation :Passthrough
-        :operands [self]
-        :reify node-reify-passthrough
-      })))
-
+    (Node.aux.op :OpBitcast type self)))
 
 (fn Node.any? [vec]
   (local bool (Type.bool))
@@ -951,7 +944,6 @@
   (assert (= bool prim) (.. "Cannot take disjunction of type: " vec.type.summary))
   (if (= 1 count) vec
     (Node.aux.op :OpAny bool vec)))
-
 
 (fn Node.all? [vec]
   (local bool (Type.bool))
@@ -993,7 +985,7 @@
                 extended
                 out)))
           (when (not= t-sign n-sign)
-            (set out (Node.aux.passthrough-convert out (Type.vector t-prim n-count)))))
+            (set out (Node.aux.bitcast-convert out (Type.vector t-prim n-count)))))
       ({:kind :int :signed n-sign} {:kind :float})
         (set out
           (Node.aux.op
@@ -1124,6 +1116,7 @@
     (let [f (. specialized-funcs i)]
       (when (not= nil f)
         (local (valid result) (pcall f operation type ...))
+        ; (when (not valid) (print result))
         (if valid result)))))
 
 
@@ -1141,6 +1134,7 @@
     (let [f (. specialized-funcs i)]
       (when (not= nil f)
         (local (valid result) (pcall f operation type ...))
+        (when (not valid) (print result))
         (if valid result)))))
 
 (fn Node.aux.autoderef [node]
@@ -1301,10 +1295,12 @@
 ; 
 
 (fn Node.aux.const-int-float-convert [operation type node]
+  (Node.constant type node.constant))
   ; (print operation type node)
-  (case type.kind
-    :int (Node.constant type (math.floor node.constant))
-    :float (Node.constant type node.constant)))
+  ; (local prim (type:prim-count))
+  ; (case prim.kind
+  ;   :int (Node.constant type (math.floor node.constant))
+  ;   :float (Node.constant type node.constant)))
 
 (macro vectorized-const-impl-unop [op ...]
   (fn vectorize-unop [op]
@@ -2504,8 +2500,8 @@
 (set Node.step
   (node-glsl-binop { :name "step function" :float :Step }))
 
-(set Node.distance
-  (node-glsl-binop { :name "find distance between" :float :Distance }))
+(set Node.reflect
+  (node-glsl-binop { :name "reflect across" :float :Reflect }))
 
 (fn Node.max [a ...]
   (case ...
@@ -2621,6 +2617,53 @@
 (set Node.msb
   (node-glsl-unop { :name "find most-significant bit" :sint :FindSMsb :uint :FindUMsb :no-i64? true }))
 
+(fn Node.norm [v]
+  (local f32 (Type.float 32))
+  (local v (Node.aux.autoderef v))
+  (local v (if (node? v) v (f32 v)))
+  (var (out-prim out-count) (v.type:prim-count))
+  (when (= out-prim.kind :int)
+    (set out-prim (Type.float 32)))
+  (local out-type (Type.vector out-prim out-count))
+  (Node.glsl.op :Length out-prim (out-type v)))
+
+(fn Node.distance [lhs rhs]
+  (local lhs (Node.aux.autoderef lhs))
+  (local rhs (Node.aux.autoderef rhs))
+  (local out-type
+    (if (and (node? lhs) (node? rhs)) (Type.prim-common-supertype lhs.type rhs.type)
+        (node? lhs) lhs.type
+        (node? rhs) rhs.type))
+  (var (out-prim out-count) (out-type:prim-count))
+  (when (= out-prim.kind :int)
+    (set out-prim (Type.float 32)))
+  (local out-type (Type.vector out-prim out-count))
+  (Node.glsl.op :Distance out-prim
+    (out-type lhs)
+    (out-type rhs)))
+
+(fn Node.length [v]
+  (if (not (node? v)) (# v)
+    (case v.type.kind
+      :array (assert v.type.count "Cannot have a reference to an unsized array which is not a pointer!")
+      :pointer
+        (case v.type.elem.kind
+          :array
+            (or v.type.count
+              (do (local base (Node.aux.base-ptr v))
+                  (local base-type base.type.elem)
+                  (assert (= base-type.kind :struct)
+                    "Cannot take length of unsized array not originating from a buffer!")
+                  (local fields (# base-type.field-types))
+                  (local final-member-type (. base-type.field-types fields))
+                  (assert (= final-member-type v.type.elem)
+                    (.. "Cannot take length of unsized array not immediately nested within buffer: " base-type))
+                  (Node.aux.op :OpArrayLength (Type.int 32) base (- fields 1))))
+          _ (Node.norm v)
+        )
+      _ (Node.norm v)
+      )))
+
 
 (fn Node.select [cond then else]
   (local bool (Type.bool))
@@ -2629,21 +2672,52 @@
   (local then (Node.aux.autoderef then))
   (local else (Node.aux.autoderef else))
 
-  (if (and (node? cond) (= :constant cond.kind)) (if cond.constant then else)
-    (do 
-      (local f32 (Type.float 32))
-      (local then-type (if (node? then) then.type f32))
-      (local else-type (if (node? else) else.type f32))
+  (local f32 (Type.float 32))
+  (local then-type (if (node? then) then.type f32))
+  (local else-type (if (node? else) else.type f32))
 
-      ; FIXME: OpSelect can also work on pointers or composites
-      (local out-type
-        (Type.prim-common-supertype then-type else-type))
+  ; FIXME: OpSelect can also work on pointers or composites
+  (local out-type
+    (Type.prim-common-supertype then-type else-type))
 
-      (local (out-prim out-count) (out-type:prim-count))
-      (local cond-type (Type.vector bool out-count))
+  (local (out-prim out-count) (out-type:prim-count))
+  (local cond-type (Type.vector bool out-count))
 
-      (Node.aux.op
-        :OpSelect out-type (cond-type cond) (out-type then) (out-type else)))))
+  (Node.aux.op
+    :OpSelect out-type (cond-type cond) (out-type then) (out-type else)))
+
+
+(fn Node.face-forward [v0 v1 v2]
+  (local v0 (Node.aux.autoderef v0))
+  (local v1 (Node.aux.autoderef v1))
+  (local v2 (Node.aux.autoderef v2))
+    
+  (local f32 (Type.float 32))
+  (local v0t (if (node? v0) v0.type f32))
+  (local v1t (if (node? v1) v1.type f32))
+  (local v2t (if (node? v2) v2.type f32))
+
+  (local out-type
+    (Type.prim-common-supertype v0t v1t v2t))
+
+  (Node.glsl.op :FaceForward out-type (out-type v0) (out-type v1) (out-type v2)))
+
+
+(fn Node.refract [v0 v1 eta]
+  (local v0 (Node.aux.autoderef v0))
+  (local v1 (Node.aux.autoderef v1))
+  (local eta (Node.aux.autoderef eta))
+    
+  (local f32 (Type.float 32))
+  (local v0t  (if (node? v0)  v0.type f32))
+  (local v1t  (if (node? v1)  v1.type f32))
+  (local etat (if (node? eta) eta.type f32))
+
+  (local out-type
+    (Type.prim-common-supertype v0t v1t etat))
+  (local out-prim (out-type:prim-count))
+
+  (Node.glsl.op :Refract out-type (out-type v0) (out-type v1) (out-prim eta)))
 
 
 (fn Node.smoothstep [v0 v1 vt]
@@ -2652,17 +2726,18 @@
   (local vt (Node.aux.autoderef vt))
   (if (not (or (node? v0) (node? v1) (node? vt)))
     (do
+      ; FIXME: put this into constant folding definition instead of here
       (local t (/ (- vt v0) (- v1 v0)))
       (local t (math.min 1 (math.max t 0)))
       (* t t (- 3 (* t 2))))
     (do 
       (local f32 (Type.float 32))
-      (local v0 (if (node? v0) v0 (f32 v0)))
-      (local v1 (if (node? v1) v1 (f32 v1)))
-      (local vt (if (node? vt) vt (f32 vt)))
+      (local v0t (if (node? v0) v0.type f32))
+      (local v1t (if (node? v1) v1.type f32))
+      (local vtt (if (node? vt) vt.type f32))
 
       (local out-type
-        (Type.prim-common-supertype v0.type v1.type vt.type))
+        (Type.prim-common-supertype v0t v1t vtt))
       
       (local (out-prim out-count) (out-type:prim-count))
       (assert (= :float out-prim.kind) "Cannot smoothstep non-floating values.")
@@ -2675,7 +2750,9 @@
   (local v0 (Node.aux.autoderef v0))
   (local v1 (Node.aux.autoderef v1))
   (local vt (Node.aux.autoderef vt))
-  (if (not (or (node? v0) (node? v1) (node? vt))) (+ v0 (* (- v1 v0) vt))
+  (if (not (or (node? v0) (node? v1) (node? vt)))
+    ; FIXME: put this into constant folding definition instead of here
+    (+ v0 (* (- v1 v0) vt))   
     (do 
       (local f32 (Type.float 32))
       (local v0 (if (node? v0) v0 (f32 v0)))
@@ -2710,6 +2787,29 @@
 
       (Node.glsl.op
         :Fma out-type (out-type v0) (out-type v1) (out-type v2))))
+
+
+(fn Node.cross [v0 v1]
+  (local v0 (Node.aux.autoderef v0))
+  (local v1 (Node.aux.autoderef v1))
+    
+  (local f32 (Type.float 32))
+  (local vec3f32 (Type.vector f32 3))
+
+  (local v0t (if (node? v0) v0.type f32))
+  (local v1t (if (node? v1) v1.type f32))
+
+  (local out-type
+    (Type.prim-common-supertype v0t v1t))
+
+  (local out-prim (out-type:prim-count))
+
+  (local out-type 
+    (case out-prim.kind
+      :int vec3f32
+      :float out-type))
+
+  (Node.glsl.op :Cross out-type (out-type v0) (out-type v1)))
 
 
 (fn Node.determinant [mat]
@@ -2759,6 +2859,43 @@
       (values
         modf-result.1 modf-result.0)
     )))
+
+
+(fn Node.frexp [value]
+  (local i32 (Type.int 32 true))
+
+  (assert (node? value) "Argument to frexp must be node, got comptime value")
+  (local value (Node.aux.autoderef value))
+
+  (local (prim count) (value.type:prim-count))
+  (assert (= prim.kind :float) (.. "Argument to frexp must be floating, got: " value.type.summary))
+
+  (local exp-type (Type.vector i32 count))
+  (local out-type (Type.struct [value.type exp-type] [:0 :1]))
+
+  (local frexp-result (Node.glsl.op :FrexpStruct out-type value))
+  (values frexp-result.1 frexp-result.0))
+
+
+(fn Node.ldexp [v exp]
+  (assert (and (node? v) (node? exp)) "Arguments to ldexp must be nodes, got comptime value(s)")
+
+  (local v (Node.aux.autoderef v))
+  (local exp (Node.aux.autoderef exp))
+
+  (local (v-prim v-count) (v.type:prim-count))
+  (local (exp-prim exp-count) (exp.type:prim-count))
+
+  (assert (= v-prim.kind :float) (.. "First argument to ldexp must be floating, got: " v.type.summary))
+  (assert (= exp-prim.kind :int) (.. "Second argument to ldexp must be integral, got: " exp.type.summary))
+
+  ; done just to make sure the vector lengths are compatible
+  (local supertype (Type.prim-common-supertype v.type exp.type))
+  (local (_ super-count) (supertype:prim-count))
+  (local v-type (Type.vector v-prim super-count))
+  (local exp-type (Type.vector exp-prim super-count))
+  
+  (Node.glsl.op :Ldexp v-type (v-type v) (exp-type exp)))
 
 ;
 ; 

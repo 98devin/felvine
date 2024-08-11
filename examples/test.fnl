@@ -87,23 +87,6 @@
      (*+ x x y) ; fma via glsl ext
     ))
 
-; (var* total f32             := 0)
-; (var* total []f32           := [0 0 0])
-; (var* total {:0 f32 :1 f32} := {:x 10 :y 20})
-
-; (uniform* (0 0) Images2D
-;   { sampledImage2D })
-; (buffer* )
-
-; (var* (Input) VertexInput 
-;   { 
-;     direction v3f32 })
-
-; (var* (Output) VertexOutput
-;   { position v4f32 (BuiltIn Position) })
-
-; (set* VertexOutput.position (v4f32 0 0 0 1))
-
 
 (fn* test-number-operations f32 [(s8 i8) (s16 i16) (s32 i32) (s64 i64)
                             (w8 u8) (w16 u16) (w32 u32) (w64 u64)
@@ -146,7 +129,7 @@
   (for* [(i i32) j 10]
     (set* j (+ j i)))
 
-  (for* [(i i32) j 20 2]
+  (for* [(i i32) j (* 2 j) 2]
     (set* j (+ j i)))
 
   j)
@@ -445,6 +428,36 @@
   ]
   num)
 
+
+(fn float-ops [x]
+  (+ (round x)
+     (round-even x)
+     (ceil x)
+     (floor x)
+     (trunc x)
+     (fract x)
+     (abs x)
+     (sign x)
+     (sin x)
+     (cosh x)
+     (exp x)
+     (sqrt x)))
+
+(fn vector-ops [v0 v1]
+  (+ (distance v0 v1)
+     (norm v0)
+     (normalize v0)
+     (face-forward v0 v0 v1)
+     (reflect v0 v1)
+     (refract v0 v1 0.8)))
+
+(fn* test-floating-operations f32
+  [(v0 (vec3 f32)) (v1 (vec3 f32))]
+  (local a
+    (+ (float-ops v0.0)
+       (float-ops v0)
+       (vector-ops v0 v1)))
+  (dot a a))
 
 
 (entrypoint main Fragment [OriginUpperLeft]

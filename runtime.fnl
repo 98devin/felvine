@@ -546,14 +546,13 @@
       :dot Node.dot
       :mix Node.mix
       :modf Node.modf
+      :frexp Node.frexp
+      :ldexp Node.ldexp
       :step Node.step
       :smoothstep Node.smoothstep
       :select Node.select
       :fma Node.fma
-      :*+ Node.fma
-
-      ; :control-barrier Node.aux.control-barrier
-      ; :memory-barrier Node.aux.memory-barrier
+      :*+ Node.fma ; TODO: expand this operator to allow chaining or something more useful
 
       :round Node.round
       :round-even Node.round-even
@@ -585,6 +584,13 @@
       :sqrt Node.sqrt
       :inverse-sqrt Node.inverse-sqrt
       :normalize Node.normalize
+      :norm Node.norm
+      :length Node.length
+      :distance Node.distance
+      :face-forward Node.face-forward
+      :refract Node.refract
+      :reflect Node.reflect
+      :cross Node.cross
       :lsb Node.lsb
       :msb Node.msb
   
