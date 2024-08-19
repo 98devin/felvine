@@ -483,3 +483,7 @@
     (test-subgroup-operations 1)))
 
   (set* Color ((vec4 f32) (pbr-neutral-tonemapping pos.xyz) pos.w)))
+
+
+(execution-mode main DepthReplacing)
+(execution-mode "main" DepthLess)

@@ -304,6 +304,33 @@ Note that even if you do not _call_ the function created with `fn*`, it will sti
 if you want to export or link the function definition between multiple SPIRV modules, but otherwise the definition can be stripped
 by `spirv-opt` if necessary.
 
+### Entrypoints
+
+SPIRV allows multiple shaders to exist within one module. Felvine allows declaring multiple entrypoints as well, and with any name you choose. Entrypoints which exist in the same file can therefore share definitions of types, functions, and global variables (like descriptor bindings) when meaningful to do so. 
+
+A shader entrypoint is effectively a zero-argument function which returns void, but they have additional properties as well. Most obviously, the entrypoint must declare what kind of shader it represents, e.g. Vertex, Fragment, TesselationEvaluation, ClosestHit, which is referred to as the "execution model". Complementary to this and depending on the execution model, we may be able to (or required to) specify a number of "execution modes" which inform the behavior of the shader in other ways. For example, in the Fragment execution model we must specify the origin in screen space as e.g. OriginUpperLeft.
+
+Felvine provides the following syntax allowing to specify the execution model and execution modes and the body of the entrypoint function: `(entrypoint <name> <model> [<modes...>] <body>)`. 
+The following are notional examples of how this is used to configure various shader execution models:
+```fennel
+; Fragment shaders must specify OriginUpperLeft in Vulkan.
+; Other execution modes can give guarantees about computed depth tests etc.
+(entrypoint fragmentMain Fragment [OriginUpperLeft DepthReplacing DepthLess] ...)
+
+; SPIRV defines compute shaders using the GLCompute execution model.
+; Compute-like shaders need to define the local number of invocations with LocalSize,
+; or LocalSizeId if a SPIRV constant rather than a compile time number is used as a parameter.
+; Depending on extensions, some other features can be activated too.
+(entrypoint postProcess GLCompute [(LocalSize 8 8 1) DerivativeGroupQuadsNV] ...)
+
+; Mesh shaders need to define max output bounds
+(entrypoint meshMain MeshEXT [(LocalSize 8 8 1) (OutputVertices 64) (OutputPrimitivesEXT 64)] ...)
+
+; ...etc.
+```
+
+The body of the entrypoint is a great place to declare global variables that should not be shared like input/outputs. It is also where control flow begins.
+
 ### Conditional Control Flow
 
 Fennel provides full tail call elimination, but SPIRV requires strictly structured control flow. So while "compile-time" control flow can appear anywhere and will essentially be inlined into the final code, the following constructs can only appear within an enclosing `fn*` definition (at the point when the construct is evaluated). If you need more advanced control flow constructs, many can be formed by combinations of the below and optionally made more pleasant to use with a macro. More ought to be added to `dsl.v1` however if these are found to be too limiting.

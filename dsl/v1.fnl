@@ -313,6 +313,16 @@
         (fn [] ,...)))))
 
 
+(fn execution-mode [name-or-entrypoint ...]
+  (local execution-modes
+    (icollect [_ mode (ipairs [...])] (spirv-enum spirv.ExecutionMode mode)))
+  
+  (local name
+    (if (sym? name-or-entrypoint) `(. ,name-or-entrypoint :function :name)
+        (tostring name-or-entrypoint)))
+
+  `(dsl.execution-mode ,name ,(table.unpack execution-modes)))
+
 
 (fn uniform [binding name utype ...]
   (assert-compile (and (list? binding) (= 2 (# binding))) "Uniform definition needs (set binding) information" binding)
@@ -387,6 +397,7 @@
  : decorate
  : decorate-member
  : entrypoint
+ : execution-mode
 
  : *r
 }
