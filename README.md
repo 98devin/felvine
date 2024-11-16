@@ -331,6 +331,8 @@ The following are notional examples of how this is used to configure various sha
 
 The body of the entrypoint is a great place to declare global variables that should not be shared like input/outputs. It is also where control flow begins.
 
+If for whatever reason you need to defer the choice of execution modes to after the declaration of the entrypoint, this can be done. Simply call `(execution-mode <name> ...<execution mode(s)>...)` with either the same name used for the entrypoint given as a string, or the entrypoint itself as the first parameter.
+
 ### Conditional Control Flow
 
 Fennel provides full tail call elimination, but SPIRV requires strictly structured control flow. So while "compile-time" control flow can appear anywhere and will essentially be inlined into the final code, the following constructs can only appear within an enclosing `fn*` definition (at the point when the construct is evaluated). If you need more advanced control flow constructs, many can be formed by combinations of the below and optionally made more pleasant to use with a macro. More ought to be added to `dsl.v1` however if these are found to be too limiting.
