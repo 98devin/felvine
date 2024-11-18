@@ -523,6 +523,7 @@
 
       :subgroup Node.subgroup
       :atomic Node.atomic
+
       :deref Node.deref
 
       :lt? Node.lt?
@@ -818,6 +819,26 @@
         (icollect [k _ (pairs fun.interface)] k)))
     (tset runtime.env.entrypoints name fun.id)
     fun-node)
+
+  (set dsl.geometry {})
+
+  (fn dsl.geometry.emit-vertex []
+    (local ctx (runtime:current-ctx))
+    (Node.aux.emit-vertex ctx))
+
+  (fn dsl.geometry.end-primitive []
+    (local ctx (runtime:current-ctx))
+    (Node.aux.end-primitive ctx))
+
+  (set dsl.mesh {})
+
+  (fn dsl.mesh.set-mesh-outputs [...]
+    (local ctx (runtime:current-ctx))
+    (Node.aux.set-mesh-outputs ctx ...))
+
+  (fn dsl.mesh.emit-mesh-tasks [...]
+    (local ctx (runtime:current-ctx))
+    (Node.aux.emit-mesh-tasks ctx ...))
 
   ; (fn dsl.loop [initial cond body loop-control]
 

@@ -232,6 +232,15 @@
   `(dsl.set* ,...))
 
 
+(fn local* [name value ...]
+  `(local ,name
+    (do (local v# ,value)
+        (when (node? v#)
+          (dsl.name v# ,(tostring name))
+          ,(decorate `v# ...))
+        v#)))
+
+
 (fn const* [name type ...]
   (local decs [])
   (var init nil)
@@ -244,7 +253,7 @@
             (go (select 3 ...)))
       dec
         (do (local dec (spirv-enum spirv.Decoration dec))
-            (assert dec "Unrecognized decoration:" dec)
+            (assert dec (.. "Unrecognized decoration: " dec))
             (table.insert decs dec)
             (go (select 2 ...)))))
 
@@ -287,6 +296,29 @@
        (local final# ,final)
        (dsl.reify final#)
        (dsl.for-loop (fn [] (lte? ,name final#))
+                 (fn [] (dsl.set* ,name (+ ,name ,step)))
+                 (fn [] ,(table.unpack body-content))
+                 ,control)))
+
+                 
+(fn for< [block ...]
+  (assert-compile (sequence? block) "For loop must have binding block for iterator variable" block)
+
+  (local [type-name init final ?step] block)
+  (assert-compile (list? type-name) "For loop variable must have an accompanying type" type-name)
+
+  (local [name type] type-name)
+  (assert-compile (sym? name) "For loop variable name must be symbol" name)
+
+  (local step (or ?step 1))
+  (local (control body-content)
+    (case ...
+      (:control v) (values v [(select 3 ...)])
+      _ (values nil [...])))
+  `(do (var* ,name ,type := ,init)
+       (local final# ,final)
+       (dsl.reify final#)
+       (dsl.for-loop (fn [] (lt? ,name final#))
                  (fn [] (dsl.set* ,name (+ ,name ,step)))
                  (fn [] ,(table.unpack body-content))
                  ,control)))
@@ -382,9 +414,11 @@
  : when*
  : while*
  : for*
+ : for<
  : fn*
  : var*
  : set* ; currently a passthrough but may not be later
+ : local*
  : const*
 
  :type* def-type*

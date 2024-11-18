@@ -1,3 +1,7 @@
+;
+; A kitchen-sink demonstration of various builtins, syntax, etc.
+;
+
 (require-macros :dsl.v1)
 
 (local
@@ -142,29 +146,6 @@
     ((test-operations ((vec3 f32) 10) ((vec3 f32) 2)) 0)
     ((test-operations ((vec3 u32) 10) ((vec3 u32) 2)) 0)
     (test-operations (u64 10) (u64 2)))))
-
-
-(fn* pbr-neutral-tonemapping (vec3 f32) [(color (vec3 f32))]
-  (local start-compression (- 0.8 0.04))
-  (local desaturation 0.15)
-  
-  (local x (min color.r color.g color.b))
-  (local offset
-    (select (lt? x 0.08) (* x x (- x 6.25)) 0.04))
-  
-  (local color (- color offset))
-  (local peak (max color.r color.g color.b))
-  
-  (if* (lt? peak start-compression) color
-    (do
-      (local d (- 1 start-compression))
-      (local new-peak
-        (/ (- 1 (* d d)) (- (+ peak d) start-compression)))
-      (local color (* color (/ new-peak peak)))
-
-      (local g (- 1 (/ 1 (+ 1 (* desaturation (- peak new-peak))))))
-      (mix color new-peak g)
-    )))
 
 
 (fn* test-matrix-operations (mat3 f32) [(m (mat3 f32))]
@@ -472,18 +453,15 @@
   (pack-double2x32 u))
 
 
-(entrypoint main Fragment [OriginUpperLeft]
-
-  (local pos (+ Position
+(entrypoint main Fragment []
+  (set* Color (+ Position
     (test-number-operations 1 1 1 1 1 1 1 1 1 1)
     (test-vector-projections 1)
     (test-conditional-operations 1 1 1 1 1 1)
     (test-loop-operations 1 1)
     (test-constant-propagation 1)
-    (test-subgroup-operations 1)))
-
-  (set* Color ((vec4 f32) (pbr-neutral-tonemapping pos.xyz) pos.w)))
+    (test-subgroup-operations 1))))
 
 
-(execution-mode main DepthReplacing)
+(execution-mode main OriginUpperLeft)
 (execution-mode "main" DepthLess)

@@ -84,9 +84,7 @@
 
   (local end-time (os.clock))
   (set total-time (+ total-time (- end-time start-time)))
-  (print "finished in" total-time)
-
-  (print "wrote" out-file-name))
+  (print "finished in" total-time ":" out-file-name))
 
 
 (var use-execution-env false)

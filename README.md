@@ -379,8 +379,10 @@ The simplest looping construct, repeating the body until the condition is no lon
 
 #### `for*`
 
-A numerical for loop which iterates from a starting point to an end point (inclusive). The type of the loop variable must be given as well.
-An optional step value can be provided to iterate downwards or in greater increments than 1.
+A numerical for loop which iterates from a starting point to an end point. The end point is inclusive so that
+`for*` matches the behavior of `for`, but if this is unwanted the alternative `for<` uses an exclusive endpoint so that subtracting 1 is not necessary.
+
+The type of the loop variable must be given as well. An optional step value can be provided to iterate downwards or in greater increments than 1.
 
 ```fennel
 (var* j i32 := 0)
@@ -398,7 +400,7 @@ An optional step value can be provided to iterate downwards or in greater increm
 
 ; Iterate from dynamic start/endpoint.
 ; The endpoints are only evaluated once before the loop begins.
-(for* [(i i32) (k 0) j]
+(for< [(i i32) (k 0) j]
     ...)
 ```
 
@@ -484,7 +486,7 @@ For example:
 (set* data.pointer.* { :x px :y px })
 ```
 
-### Reference Types (and self-referential types)
+### Reference Types and Self-Referential Types
 
 SPIRV supports using pointers in the `PhysicalStorageBuffer` storage class as bindless
 accessors to buffer memory when using the `bufferDeviceAddress` vulkan feature.

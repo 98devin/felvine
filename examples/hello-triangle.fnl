@@ -1,3 +1,8 @@
+;
+; Based on the '09_shader_base.{frag,vert}' files in the VulkanTutorial repo by Overv.
+; https://github.com/Overv/VulkanTutorial/blob/main/code/09_shader_base.vert
+;
+
 (require-macros :dsl.v1)
 (capability Shader)
 

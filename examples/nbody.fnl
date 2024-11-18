@@ -1,3 +1,8 @@
+;
+; Based on the 'compute_nbody' (particle_calculate.comp) shader in Vulkan-Samples by Sascha Willems.
+; https://github.com/KhronosGroup/Vulkan-Samples/blob/main/shaders/compute_nbody/glsl/particle_calculate.comp
+;
+
 (require-macros :dsl.v1)
 (capability Shader)
 
@@ -37,7 +42,7 @@
     (local velocity (Pos.particles index :vel))
     (var* acceleration (vec3 f32) := 0.0)
 
-    (for* [(i u32) 0 (- UBO.particleCount 1) SHARED_DATA_SIZE]
+    (for< [(i u32) 0 UBO.particleCount SHARED_DATA_SIZE]
 
       (if* (lt? (+ i localIndex) UBO.particleCount)
         (set* (sharedData localIndex) (Pos.particles (+ i localIndex) :pos))
@@ -45,7 +50,7 @@
 
       (barrier)
 
-      (for* [(j u32) 0 (- LOCAL_SIZE_X 1)]
+      (for< [(j u32) 0 LOCAL_SIZE_X]
         (local other (sharedData j))
         (local len (- other.xyz position.xyz))
         (set* acceleration

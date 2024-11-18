@@ -900,8 +900,8 @@
 (fn node-reify-load [self ctx]
   (local [source memory-ops] self.operands)
 
-  (assert (not source.type.elem.opaque)
-    (.. "Cannot load unsized type from memory: " source.type.summary))
+  ; (assert (not source.type.elem.opaque)
+  ;   (.. "Cannot load unsized type from memory: " source.type.summary))
 
   (local tid (ctx:type-id self.type))
   (local source-id (ctx:node-id source))
@@ -2452,6 +2452,87 @@
 (fn Node.aux.end-stream-primitive [ctx id]
   (local id (ctx:node-id (u32 id)))
   (ctx:instruction (Op.OpEndStreamPrimitive id)))
+
+;
+; Mesh shader instructions
+; 
+
+(fn Node.aux.set-mesh-outputs [ctx verts prims]
+  (local vid (ctx:node-id (u32 verts)))
+  (local pid (ctx:node-id (u32 prims)))
+  (ctx:instruction (Op.OpSetMeshOutputsEXT vid pid)))
+
+(fn Node.aux.emit-mesh-tasks [ctx x y z payload]
+  (local xid (ctx:node-id (u32 x)))
+  (local yid (ctx:node-id (u32 y)))
+  (local zid (ctx:node-id (u32 z)))
+
+  (local payload
+    (if (= nil payload) nil
+      (do 
+        (assert (node? payload) (.. "Payload for emit-mesh-tasks must be a node; cannot infer type of: " payload))
+        (assert (= payload.kind :variable) (.. "Payload for emit-mesh-tasks must be a variable; got: " payload))
+        (assert (= payload.storage StorageClass.TaskPayloadWorkgroupEXT)
+                (.. "Payload for emit-mesh-tasks must have storage class TaskPayloadWorkgroupEXT, got: " payload.storage))
+        (ctx:node-id payload)
+      )))
+
+  (ctx:instruction (Op.OpEmitMeshTasksEXT xid yid zid payload)))
+
+;
+; Ray tracing instructions
+; 
+
+(fn Node.aux.initialize-ray-query [ctx rqy acc flags cullmask origin tmin direction tmax]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
+          (.. "Argument 1 to initialize-ray-query must be a pointer to a ray query, got: " rqy))
+
+  (local acc (Node.autoderef acc))
+  (assert (and (node? acc) (= acc.type.kind :acceleration-structure))
+          (.. "Argument 2 to initialize-ray-query must be an acceleration structure, got: " acc))
+
+  (local rqyid (ctx:node-id rqy))
+  (local accid (ctx:node-id acc))
+  (local flagsid (ctx:node-id (u32 flags)))
+  (local maskid  (ctx:node-id (u32 cullmask)))
+  (local originid (ctx:node-id ((vec3 f32) origin)))
+  (local directionid (ctx:node-id ((vec3 f32) direction)))
+  (local tminid (ctx:node-id (f32 tmin)))
+  (local tmaxid (ctx:node-id (f32 tmax)))
+
+  (ctx:instruction (Op.OpRayQueryInitializeKHR rqyid accid flagsid maskid originid tminid directionid tmaxid)))
+
+
+(fn Node.aux.terminate-ray-query [ctx rqy]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
+          (.. "Argument to terminate-ray-query must be a pointer to a ray query, got: " rqy))
+  (local rqyid (ctx:node-id rqy))
+  (ctx:instruction (Op.OpRayQueryTerminateKHR rqyid)))
+
+
+(fn Node.aux.confirm-ray-query-intersection [ctx rqy]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
+          (.. "Argument to confirm-ray-query-intersection must be a pointer to a ray query, got: " rqy))
+  (local rqyid (ctx:node-id rqy))
+  (ctx:instruction (Op.OpRayQueryConfirmIntersectionKHR rqyid)))
+
+
+(fn Node.aux.generate-ray-query-intersection [ctx rqy hitt]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
+          (.. "Argument 1 to generate-ray-query-intersection must be a pointer to a ray query, got: " rqy))
+  (local rqyid (ctx:node-id rqy))
+  (local hittid (ctx:node-id (f32 hitt)))
+  (ctx:instruction (Op.OpRayQueryGenerateIntersectionKHR rqyid hittid)))
+
+
+(fn Node.aux.proceed-ray-query [rqy]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
+          (.. "Argument to proceed-ray-query must be a pointer to a ray query, got: " rqy))
+  (Node.aux.op :OpRayQueryProceedKHR (Type.bool) rqy))
+
+
+; (fn Node.aux.)
+
 
 ;
 ; Barriers

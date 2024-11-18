@@ -3,3 +3,4 @@
 *.dis
 .vscode/
 dist/
+**/__pycache__/
