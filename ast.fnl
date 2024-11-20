@@ -45,7 +45,7 @@
 ; .opaque    bool
 ; .size      ?number  ; in bytes, if not opaque
 ; .alignment ?number  ; in bytes, if not opaque
-; .kind      :void | :bool | :int | :float | :vector | :matrix | :image | :sampler | :sampled-image | :array | :pointer | :function | :struct
+; .kind      :void | :bool | :int | :float | :vector | :matrix | :image | :sampler | :sampledImage | :array | :pointer | :function | :struct
 
 ; type-info structure :int
 ; .bits      number
@@ -60,7 +60,7 @@
 
 ; type-info structure :matrix
 ; .elem      type-info
-; .col-type  type-info
+; .colType  type-info
 ; .rows      number
 ; .cols      number
 
@@ -73,7 +73,7 @@
 ; .usage     :texture | :storage
 ; .format    ?ImageFormat
 
-; type-info structure :sampled-image
+; type-info structure :sampledImage
 ; .image     type-info
 
 ; type-info structure :pointer
@@ -85,69 +85,69 @@
 ; .params    list[type-info]
 
 ; type-info structure :struct
-; .field-types   list[type-info]
-; .field-names   ?list[string]
-; .field-indices ?table[string, number]
+; .fieldTypes   list[type-info]
+; .fieldNames   ?list[string]
+; .fieldIndices ?table[string, number]
 
 (fn Type.new [o]
   (setmetatable (or o {}) Type.mt))
 
-(fn Type.aux.contained-matrix [t]
+(fn Type.aux.containedMatrix [t]
   (case t
     {:kind :matrix} t
-    {:kind :array} (Type.aux.contained-matrix t.elem)))
+    {:kind :array} (Type.aux.containedMatrix t.elem)))
 
-(fn Type.aux.layout-struct-member [type member member-type env]
-  (local contained-matrix (Type.aux.contained-matrix member-type))
-  (when contained-matrix 
+(fn Type.aux.layoutStructMember [type member memberType env]
+  (local containedMatrix (Type.aux.containedMatrix memberType))
+  (when containedMatrix 
     (local (majority vector)
-      (if (env:decorated-member? type member :RowMajor)
-        (values Decoration.RowMajor (Type.vector contained-matrix.elem contained-matrix.cols))
-        (values Decoration.ColMajor (Type.vector contained-matrix.elem contained-matrix.rows))))
+      (if (env:decoratedMember? type member :RowMajor)
+        (values Decoration.RowMajor (Type.vector containedMatrix.elem containedMatrix.cols))
+        (values Decoration.ColMajor (Type.vector containedMatrix.elem containedMatrix.rows))))
     (local {: size : alignment} vector)
-    (local padded-size (band (+ size (- alignment 1)) (bnot (- alignment 1))))
-    (env:decorate-member type member majority (Decoration.MatrixStride padded-size))))
+    (local paddedSize (band (+ size (- alignment 1)) (bnot (- alignment 1))))
+    (env:decorateMember type member majority (Decoration.MatrixStride paddedSize))))
 
 
 (fn Type.layout [type env]
-  (when (not (. env.types-laid-out type.summary))
-    (tset env.types-laid-out type.summary true)
+  (when (not (. env.typesLaidOut type.summary))
+    (tset env.typesLaidOut type.summary true)
     (case type.kind
       :pointer
-        (when (= type.storage.tag :PhysicalStorageBuffer64)
+        (when (= type.storage.tag :PhysicalStorageBuffer)
             (Type.layout type.elem env))
 
       :struct
         (do 
           (var offset 0)
-          (each [i field (ipairs type.field-types)]
+          (each [i field (ipairs type.fieldTypes)]
             (Type.layout field env)
-            (Type.aux.layout-struct-member type (- i 1) field env)
+            (Type.aux.layoutStructMember type (- i 1) field env)
             (local {: size : alignment} field)
-            (assert alignment (.. "Cannot layout struct with opaque member: " (. type.field-names i) field.summary))
-            (assert (or size (= i (# type.field-types)))
-              (.. "Cannot layout struct with unsized member if it is not last: " (. type.field-names i) field.summary))
+            (assert alignment (.. "Cannot layout struct with opaque member: " (. type.fieldNames i) field.summary))
+            (assert (or size (= i (# type.fieldTypes)))
+              (.. "Cannot layout struct with unsized member if it is not last: " (. type.fieldNames i) field.summary))
             (set offset (band (+ offset (- alignment 1)) (bnot (- alignment 1))))
-            (env:decorate-member type (- i 1) (Decoration.Offset offset))
+            (env:decorateMember type (- i 1) (Decoration.Offset offset))
             (when size (set offset (+ offset size)))))
 
       :array
         (let [{: size : alignment} type.elem
               size (assert size (.. "Cannot layout array with unsized element type: " type.elem.summary))
-              padded-size (band (+ size (- alignment 1)) (bnot (- alignment 1)))]
+              paddedSize (band (+ size (- alignment 1)) (bnot (- alignment 1)))]
           (Type.layout type.elem env)
-          (env:decorate-type type (Decoration.ArrayStride padded-size))))))
+          (env:decorateType type (Decoration.ArrayStride paddedSize))))))
 
 
-(fn Type.aux.logically-matches [self other]
+(fn Type.aux.logicallyMatches [self other]
   (case (values self.kind other.kind)
     (:array :array)
-      (and (= self.count other.count) (Type.aux.logically-matches self.elem other.elem))
+      (and (= self.count other.count) (Type.aux.logicallyMatches self.elem other.elem))
     (:struct :struct)
-      (and (= (# self.field-types) (# other.field-types))
-        (faccumulate [all true i 1 (# self.field-types)]
-          (let [t1 (. self.field-types i) t2 (. other.field-types i)]
-            (and all (or (= t1 t2) (Type.aux.logically-matches t1 t2))))))
+      (and (= (# self.fieldTypes) (# other.fieldTypes))
+        (faccumulate [all true i 1 (# self.fieldTypes)]
+          (let [t1 (. self.fieldTypes i) t2 (. other.fieldTypes i)]
+            (and all (or (= t1 t2) (Type.aux.logicallyMatches t1 t2))))))
     _ false))
 
 
@@ -176,80 +176,80 @@
     {:kind :vector : elem : count}
       (do (local args [...])
           (local components [])
-          (var component-count 0)
+          (var componentCount 0)
           (each [_ arg (ipairs args)]
             (if (node? arg)
                 (do (local arg (Node.aux.autoderef arg))
-                    (local (prim arg-count) (arg.type:prim-count))
-                    (set component-count (+ component-count arg-count))
-                    (table.insert components (Node.convert arg (Type.vector elem arg-count))))
+                    (local (prim argCount) (arg.type:primCount))
+                    (set componentCount (+ componentCount argCount))
+                    (table.insert components (Node.convert arg (Type.vector elem argCount))))
                 (= (type arg) :table)
-                (do (set component-count (+ component-count (# arg)))
-                    (icollect [_ arg-elem (ipairs arg) &into components] 
-                      (elem arg-elem)))
+                (do (set componentCount (+ componentCount (# arg)))
+                    (icollect [_ argElem (ipairs arg) &into components] 
+                      (elem argElem)))
                 (= (type arg) :number)
-                (do (set component-count (+ component-count 1))
+                (do (set componentCount (+ componentCount 1))
                     (table.insert components (elem arg)))
                 (error (.. "Cannot construct vector from argument: " (fennel.view arg)))))
           
-          (assert (or (= component-count count) (= component-count 1)) 
-                  (.. "Incorrect number of arguments to construct vector: " component-count " " tycon.summary))
+          (assert (or (= componentCount count) (= componentCount 1)) 
+                  (.. "Incorrect number of arguments to construct vector: " componentCount " " tycon.summary))
           (if
-            (= component-count 1) (Node.convert (. components 1) tycon)
+            (= componentCount 1) (Node.convert (. components 1) tycon)
             (= (# components) 1) (. components 1) 
-            (do (local common-kind (Node.aux.common-node-kind-of components))
-              (case common-kind
-                (where (or :expr :spec-constant)) (Node.composite tycon components common-kind)
+            (do (local commonKind (Node.aux.commonNodeKindOf components))
+              (case commonKind
+                (where (or :expr :specConstant)) (Node.composite tycon components commonKind)
                 :constant ; need to flatten the constants inside to replicate regular operations
-                  (do (local flat-components [])
+                  (do (local flatComponents [])
                       (each [_ component (ipairs components)]
                         (if (= component.kind :vector)
-                          (icollect [_ v (ipairs component.constant) &into flat-components] v)
-                          (table.insert flat-components component.constant)))
-                      (Node.constant tycon flat-components))))))
+                          (icollect [_ v (ipairs component.constant) &into flatComponents] v)
+                          (table.insert flatComponents component.constant)))
+                      (Node.constant tycon flatComponents))))))
 
     {:kind :array : elem : ?count}
       (do (local args [...])
-          (local arg-count (# args))
+          (local argCount (# args))
           (when ?count
-            (assert (or (= arg-count 1) (= arg-count ?count)) "Array must be constructed from a single table or unpacked sequence"))
-          (if (= arg-count 1)
+            (assert (or (= argCount 1) (= argCount ?count)) "Array must be constructed from a single table or unpacked sequence"))
+          (if (= argCount 1)
             (let [arg (Node.aux.autoderef (. args 1))]
               (if (node? arg)
                 (if (= arg.type tycon) arg
-                    (Type.aux.logically-matches arg.type tycon) (Node.aux.op :OpCopyLogical tycon arg)
+                    (Type.aux.logicallyMatches arg.type tycon) (Node.aux.op :OpCopyLogical tycon arg)
                     (error (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary)))
-                (Type.aux.array-from-parts tycon arg)))
-            (Type.aux.array-from-parts tycon args)))
+                (Type.aux.arrayFromParts tycon arg)))
+            (Type.aux.arrayFromParts tycon args)))
 
     {:kind :matrix : elem : rows : cols}
       (do (local args [...])
-          (local arg-count (# args))
-          (assert (or (= arg-count 1) (= arg-count cols))
+          (local argCount (# args))
+          (assert (or (= argCount 1) (= argCount cols))
             "Matrix must be constructed from a single table or unpacked sequence of columns")
-          (local args (if (= arg-count 1) (. args 1) args))
-          (if (and (= arg-count 1) (node? args))
+          (local args (if (= argCount 1) (. args 1) args))
+          (if (and (= argCount 1) (node? args))
             (if (= tycon args.type) args
                 (= :matrix args.kind)
-                  (Type.aux.matrix-from-parts tycon
+                  (Type.aux.matrixFromParts tycon
                     (fcollect [i 0 (- args.cols 1)] (args i)))
-                (Type.aux.matrix-from-parts args))
-            (Type.aux.matrix-from-parts args)))
+                (Type.aux.matrixFromParts args))
+            (Type.aux.matrixFromParts args)))
     
-    {:kind :struct : field-types : field-names}
+    {:kind :struct : fieldTypes : fieldNames}
       (do (local args [...])
-          (local arg-count (# args))
-          (assert (or (= arg-count 1) (= arg-count (# field-types)))
+          (local argCount (# args))
+          (assert (or (= argCount 1) (= argCount (# fieldTypes)))
             "Struct must be constructed from a single table or sequence of field values")
           (if (= (# args) 1)
             (let [arg (Node.aux.autoderef (. args 1))]
               (assert (= (type arg) :table) (.. "Struct must be constructed from table, got: " (tostring arg)))            
               (if (node? arg)
                 (if (= arg.type tycon) arg
-                    (Type.aux.logically-matches arg.type tycon) (Node.aux.op :OpCopyLogical tycon arg)
+                    (Type.aux.logicallyMatches arg.type tycon) (Node.aux.op :OpCopyLogical tycon arg)
                     (error (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary)))
-                (Type.aux.struct-from-parts tycon arg)))
-            (Type.aux.struct-from-parts tycon args)))
+                (Type.aux.structFromParts tycon arg)))
+            (Type.aux.structFromParts tycon args)))
     
     other
       (do (local arg ...)
@@ -261,62 +261,62 @@
             (error (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary))))))
 
 
-(fn Type.aux.array-from-parts [tycon parts]
+(fn Type.aux.arrayFromParts [tycon parts]
   (local {: count : elem} tycon)
   (local components
     (icollect [_ arg (ipairs parts)]
       (elem arg)))
-  (local component-count (# components))
+  (local componentCount (# components))
 
   (when count
-    (assert (= component-count count) (.. "Incorrect number of arguments to construct array: " component-count tycon.summary)))
+    (assert (= componentCount count) (.. "Incorrect number of arguments to construct array: " componentCount tycon.summary)))
 
-  (local common-kind (Node.aux.common-node-kind-of components))
-  (case common-kind
-    :constant (Node.constant (Type.array elem component-count) components) ; we know count, no need for runtime array.
-    _ (Node.composite tycon components common-kind)))
+  (local commonKind (Node.aux.commonNodeKindOf components))
+  (case commonKind
+    :constant (Node.constant (Type.array elem componentCount) components) ; we know count, no need for runtime array.
+    _ (Node.composite tycon components commonKind)))
 
 
-(fn Type.aux.matrix-from-parts [tycon parts]
+(fn Type.aux.matrixFromParts [tycon parts]
   (local {: elem : rows} tycon)
   (local column (Type.vector elem rows))
   (local components
     (icollect [_ arg (ipairs parts)]
       (column arg)))
 
-  (local common-kind (Node.aux.common-node-kind-of components))
-  (case common-kind
+  (local commonKind (Node.aux.commonNodeKindOf components))
+  (case commonKind
     :constant (Node.constant tycon components)
-    _ (Node.composite tycon components common-kind)))
+    _ (Node.composite tycon components commonKind)))
 
 
-(fn Type.aux.struct-from-parts [tycon parts]
-  (local {: field-types : field-names} tycon)
-  (let [fields (icollect [i name (ipairs tycon.field-names)]
-                ((. tycon.field-types i) (or (. parts name) (. parts i))))
-        common-kind (Node.aux.common-node-kind-of fields)]
+(fn Type.aux.structFromParts [tycon parts]
+  (local {: fieldTypes : fieldNames} tycon)
+  (let [fields (icollect [i name (ipairs tycon.fieldNames)]
+                ((. tycon.fieldTypes i) (or (. parts name) (. parts i))))
+        commonKind (Node.aux.commonNodeKindOf fields)]
     ; TODO: support constant folded struct values properly
-    (Node.composite tycon fields common-kind)))
+    (Node.composite tycon fields commonKind)))
 
 
 ; forced id parameter necessary to ensure forward pointer declarations are
-; linked properly, e.g. for types which reference a PhysicalStorageBuffer64* to themselves.
+; linked properly, e.g. for types which reference a PhysicalStorageBuffer* to themselves.
 (fn Type.reify [self ctx id]
-  (local id (or id (ctx:fresh-id)))
+  (local id (or id (ctx:freshID)))
   (case self.kind
     :void (ctx:instruction (Op.OpTypeVoid id))
     :bool (ctx:instruction (Op.OpTypeBool id))
     :int (ctx:instruction (Op.OpTypeInt id self.bits (if self.signed 1 0)))
     :float (ctx:instruction (Op.OpTypeFloat id self.bits))
-    :vector (ctx:instruction (Op.OpTypeVector id (ctx:type-id self.elem) self.count))
+    :vector (ctx:instruction (Op.OpTypeVector id (ctx:typeID self.elem) self.count))
     :matrix (do (local column (Type.vector self.elem self.rows))
-                (ctx:instruction (Op.OpTypeMatrix id (ctx:type-id column) self.cols)))
+                (ctx:instruction (Op.OpTypeMatrix id (ctx:typeID column) self.cols)))
     :sampler (ctx:instruction (Op.OpTypeSampler id))
-    :sampled-image (ctx:instruction (Op.OpTypeSampledImage id (ctx:type-id self.image)))
+    :sampledImage (ctx:instruction (Op.OpTypeSampledImage id (ctx:typeID self.image)))
     :image (ctx:instruction
       (Op.OpTypeImage
         id
-        (ctx:type-id self.elem)
+        (ctx:typeID self.elem)
         self.dim
         (if self.depth 1 0)
         (if self.array 1 0)
@@ -326,39 +326,42 @@
           :storage 2)
         (or self.format ImageFormat.Unknown)))
 
+    :rayQuery (ctx:instruction (Op.OpTypeRayQueryKHR id))
+    :accelerationStructure (ctx:instruction (Op.OpTypeAccelerationStructureKHR id))
+
     :pointer 
       (when (or (= nil self.forward)
               (= id self.forward))
         (Type.layout self ctx)
-        (ctx:instruction (Op.OpTypePointer id self.storage (ctx:type-id self.elem))))
+        (ctx:instruction (Op.OpTypePointer id self.storage (ctx:typeID self.elem))))
 
     :function (ctx:instruction
       (Op.OpTypeFunction
         id
-        (ctx:type-id self.return)
+        (ctx:typeID self.return)
         (icollect [_ t (ipairs self.params)]
-          (ctx:type-id t))))
+          (ctx:typeID t))))
       
     :struct
       (do (ctx:instruction
-            (Op.OpTypeStruct id (icollect [_ t (ipairs self.field-types)] (ctx:type-id t))))
-          (when self.field-names
-            (each [i v (ipairs self.field-names)]
+            (Op.OpTypeStruct id (icollect [_ t (ipairs self.fieldTypes)] (ctx:typeID t))))
+          (when self.fieldNames
+            (each [i v (ipairs self.fieldNames)]
               (ctx:instruction (Op.OpMemberName id (- i 1) v))))
-          (when self.field-decorations
-            (each [i decs (pairs self.field-decorations)]
+          (when self.fieldDecorations
+            (each [i decs (pairs self.fieldDecorations)]
               (each [_ dec (ipairs decs)]
-                (ctx:decorate-member-id id (- i 1) dec)))))
+                (ctx:decorateMemberID id (- i 1) dec)))))
     :array
       (case self.count
-        nil (ctx:instruction (Op.OpTypeRuntimeArray id (ctx:type-id self.elem)))
+        nil (ctx:instruction (Op.OpTypeRuntimeArray id (ctx:typeID self.elem)))
         count (do (local count ((Type.int 32 false) count))
-                  (ctx:instruction (Op.OpTypeArray id (ctx:type-id self.elem) (ctx:node-id count))))))
+                  (ctx:instruction (Op.OpTypeArray id (ctx:typeID self.elem) (ctx:nodeID count))))))
 
   (ctx:instruction (Op.OpName id self.summary))
   id)
 
-(fn Type.make-summary [info]
+(fn Type.makeSummary [info]
   (local summary 
     (case info.kind
       :void :void
@@ -376,7 +379,7 @@
             (.. "[" count "]" info.elem.summary))
       :matrix (.. "m" info.rows "x" info.cols info.elem.summary)
       :sampler :sampler
-      :sampled-image
+      :sampledImage
         (info.image.summary:gsub "texture" "sampler")
       :image (.. info.usage info.dim.tag
         (if info.depth "Depth" "")
@@ -389,9 +392,11 @@
           (.. info.storage.tag :* info.elem.summary))
       :function (.. "(" (table.concat (icollect [_ e (ipairs info.params)] e.summary) ",") ")" info.return.summary)
       :struct 
-        (if info.field-names
-          (.. "{" (table.concat (icollect [i e (ipairs info.field-types)] (.. (. info.field-names i) ":" e.summary)) ",") "}")
-          (.. "{" (table.concat (icollect [_ e (ipairs info.field-types)] e.summary) ",") "}"))
+        (if info.fieldNames
+          (.. "{" (table.concat (icollect [i e (ipairs info.fieldTypes)] (.. (. info.fieldNames i) ":" e.summary)) ",") "}")
+          (.. "{" (table.concat (icollect [_ e (ipairs info.fieldTypes)] e.summary) ",") "}"))
+      :rayQuery :rayQuery
+      :accelerationStructure :accelerationStructure
     ))
   (set info.summary (.. summary (if info.instance (.. "(" info.instance ")") "")))
   summary)
@@ -417,25 +422,25 @@
       :summary :sampler
     }))
 
-(fn Type.acceleration-structure []
+(fn Type.accelerationStructure []
   (Type.new
-    { :kind :acceleration-structure
+    { :kind :accelerationStructure
       :opaque true
-      :summary :acceleration-structure
+      :summary :accelerationStructure
     }))
 
-(fn Type.ray-query []
+(fn Type.rayQuery []
   (Type.new
-    { :kind :ray-query
+    { :kind :rayQuery
       :opaque true
-      :summary :ray-query
+      :summary :rayQuery
     }))
 
 (fn Type.sampled [image]
   (assert (= image.kind :image) (.. "Cannot sample non-image type: " image.summary))
   (assert (= image.usage :texture) (.. "Cannot sample storage image: " image.summary))
   (Type.new
-    { :kind :sampled-image
+    { :kind :sampledImage
       :opaque true
       :image image
     }))
@@ -494,33 +499,33 @@
       :majority majority
     }))
 
-(fn advance-size-alignment [current {: size : alignment}]
+(fn advanceSizeAlignment [current {: size : alignment}]
   (if (or (= nil current) (= nil current.size) (= nil alignment))
     nil
-    (let [aligned-offset (band
+    (let [alignedOffset (band
           (+ current.size (- alignment 1))
           (bnot (- alignment 1)))]
-        { :size (if (not= nil size) (+ aligned-offset size))
+        { :size (if (not= nil size) (+ alignedOffset size))
           :alignment (math.max current.alignment alignment)
         })))
 
-(fn Type.struct [field-types field-names field-decorations]
-    (local field-decorations (or field-decorations {}))
-    (local field-indices {})
-    (each [i t (pairs field-types)]
-      (tset field-indices (. field-names i) (- i 1)))
-    (local size-alignment
-      (accumulate [current {:size 0 :alignment 1} _ ty (ipairs field-types)]
-        (advance-size-alignment current ty)))
+(fn Type.struct [fieldTypes fieldNames fieldDecorations]
+    (local fieldDecorations (or fieldDecorations {}))
+    (local fieldIndices {})
+    (each [i t (pairs fieldTypes)]
+      (tset fieldIndices (. fieldNames i) (- i 1)))
+    (local sizeAlignment
+      (accumulate [current {:size 0 :alignment 1} _ ty (ipairs fieldTypes)]
+        (advanceSizeAlignment current ty)))
     (Type.new
       { :kind :struct
-        :opaque (= nil size-alignment)
-        :size (?. size-alignment :size)
-        :alignment (?. size-alignment :alignment)
-        : field-types
-        : field-names
-        : field-indices
-        : field-decorations
+        :opaque (= nil sizeAlignment)
+        :size (?. sizeAlignment :size)
+        :alignment (?. sizeAlignment :alignment)
+        : fieldTypes
+        : fieldNames
+        : fieldIndices
+        : fieldDecorations
       }))
 
 (fn Type.function [return params]
@@ -533,7 +538,7 @@
 
 (fn Type.pointer [elem storage forward]
   (local (opaque size alignment)
-    (if (= storage StorageClass.PhysicalStorageBuffer64)
+    (if (= storage StorageClass.PhysicalStorageBuffer)
         (values false 8 8)
         true))
   (Type.new
@@ -549,39 +554,39 @@
 ; `access` is indexing from pointers and can be dynamic
 (fn Type.access [self index]
   (assert (= self.kind :pointer) (.. "Cannot `access` via non pointer type: " self.summary))
-  (fn ptr-to [new-elem] (Type.pointer new-elem self.storage))
+  (fn ptr [newElem] (Type.pointer newElem self.storage))
   (case self.elem
-    {:kind :struct : field-types}
+    {:kind :struct : fieldTypes}
       (do (assert (= index.kind :constant) (.. "Cannot access non-constant struct field of " self.elem.summary))
           (assert (= index.type.kind :int) (.. "Struct field access must be an integer, got: " index.type.summary))
-          (local member-index (+ index.constant 1))
-          (assert (<= member-index (# field-types)) (.. "Struct does not have enough fields for index: " member-index " " self.elem.summary))
-          (ptr-to (. field-types member-index)))
+          (local memberIndex (+ index.constant 1))
+          (assert (<= memberIndex (# fieldTypes)) (.. "Struct does not have enough fields for index: " memberIndex " " self.elem.summary))
+          (ptr (. fieldTypes memberIndex)))
     {:kind :vector : count}
       (do (assert (= index.type.kind :int) (.. "Vector index must be an integer, got: " index.type.summary))
           (when (= index.kind :constant)
             (assert (< (or index.constant 0) count) (.. "Vector index would be out of bounds: " index.constant " " self.elem.summary)))
-          (ptr-to self.elem.elem))
+          (ptr self.elem.elem))
     {:kind :array : ?count}
       (do (assert (= index.type.kind :int) (.. "Array index must be an integer, got: " index.type.summary))
           (when (and (= index.kind :constant) (not= nil ?count))
             (assert (< index.constant ?count) (.. "Array index would be out of bounds: " index.constant " " self.elem.summary)))
-          (ptr-to self.elem.elem))
+          (ptr self.elem.elem))
     {:kind :matrix : cols : rows}
       (do (assert (= index.type.kind :int) (.. "Matrix index must be an integer, got: " index.type.summary))
           (when (= index.kind :constant)
             (assert (< (or index.constant 0) cols) (.. "Matrix index would be out of bounds: " index.constant " " self.elem.summary)))
-          (ptr-to (Type.vector self.elem.elem rows)))
+          (ptr (Type.vector self.elem.elem rows)))
     _ (error (.. "Cannot index non-composite type: " self.elem.summary))))
 
 ; `extract` is indexing into values and must be static
 (fn Type.extract [self index]
   (assert (= (type index) :number) (.. "Cannot `extract` with non-numeric index: " index))
   (case self
-    {:kind :struct : field-types}
-      (do (local member-index (+ index 1))
-          (assert (<= member-index (# self.field-types)) (.. "Struct does not have enough fields for index: " member-index " " self.summary))
-          (. self.field-types member-index))
+    {:kind :struct : fieldTypes}
+      (do (local memberIndex (+ index 1))
+          (assert (<= memberIndex (# self.fieldTypes)) (.. "Struct does not have enough fields for index: " memberIndex " " self.summary))
+          (. self.fieldTypes memberIndex))
     {:kind :vector : count}
       (do (assert (< index count)) (.. "Vector index would be out of bounds: " index " " self.summary)
           self.elem)
@@ -599,14 +604,14 @@
     :pointer self.elem
     _ (error (.. "Cannot dereference non-pointer type: " self.summary))))
 
-(fn Type.prim-count [self]
+(fn Type.primCount [self]
   (case self.kind
     :int (values self 1)
     :float (values self 1)
     :vector (values self.elem self.count)
     _ (error (.. "Type is not primitive: " self.summary))))
 
-(fn Type.prim-elem [self]
+(fn Type.primElem [self]
   (case self.kind
     :int self
     :float self
@@ -616,7 +621,7 @@
 
 (fn Type.mt.__index [self key]
   (case key
-    :summary (Type.make-summary self)
+    :summary (Type.makeSummary self)
     _ (. Type key)))
 
 (fn Type.mt.__eq [self other]
@@ -627,14 +632,14 @@
 
 (set Type.mt.__call Type.construct)
 
-(fn struct-member-index [type member-name]
-  (local ix (?. type :field-indices member-name))
-  (assert ix (.. "Type is not a struct or has no member `" member-name "`: " type.summary))
+(fn structMemberIndex [type memberName]
+  (local ix (?. type :fieldIndices memberName))
+  (assert ix (.. "Type is not a struct or has no member `" memberName "`: " type.summary))
   ix)
 
 
 ; node structure
-; .kind          :expr | :phi | :function | :variable | :param | :constant | :spec-constant
+; .kind          :expr | :phi | :function | :variable | :param | :constant | :specConstant
 ; .type          type-info
 ; .reify         (fn[self block] -> id) 
   ; write Op(s) to block returning result id
@@ -657,7 +662,7 @@
 ; node structure :constant
 ; .constant  any
 
-; node structure :spec-constant
+; node structure :specConstant
 ; .operation     SpecConstantOp.tag
 ; .operands      list[any]
 ; .dependencies  list[node]
@@ -666,24 +671,24 @@
   (local o (or o {}))
   (setmetatable o Node.mt))
 
-(set Node.constant-impl {})
-(set Node.spec-constant-impl {})
+(set Node.constantImpl {})
+(set Node.specConstantImpl {})
 
-(fn Node.aux.common-node-kind [kind1 kind2]
+(fn Node.aux.commonNodeKind [kind1 kind2]
   (case (values kind1 kind2)
     (:constant :constant)           :constant
-    (:constant :spec-constant)      :spec-constant
-    (:spec-constant :constant)      :spec-constant
-    (:spec-constant :spec-constant) :spec-constant
+    (:constant :specConstant)      :specConstant
+    (:specConstant :constant)      :specConstant
+    (:specConstant :specConstant) :specConstant
     _ :expr))
 
-(fn Node.aux.common-node-kind-of [nodes]
+(fn Node.aux.commonNodeKindOf [nodes]
   (accumulate [kind :constant _ node (ipairs nodes)]
-    (Node.aux.common-node-kind kind node.kind)))
+    (Node.aux.commonNodeKind kind node.kind)))
 
-(fn node-reify-param [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local id (ctx:fresh-id))
+(fn nodeReifyParam [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local id (ctx:freshID))
   (local op (Op.OpFunctionParameter tid id))
   (ctx:instruction op)
   id)
@@ -692,12 +697,12 @@
   (Node.new
     { :kind :param
       :type type
-      :reify node-reify-param
+      :reify nodeReifyParam
     }))
 
-(fn node-reify-phi [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local id (ctx:fresh-id))
+(fn nodeReifyPhi [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local id (ctx:freshID))
   (local op (Op.OpPhi tid id self.sources))
   (ctx:instruction op)
   id)
@@ -707,10 +712,10 @@
     { :kind :phi
       :type type
       :sources [...]
-      :reify node-reify-phi
+      :reify nodeReifyPhi
     }))
 
-(fn node-reify-function [self ctx]
+(fn nodeReifyFunction [self ctx]
   self.function.id)
 
 (fn Node.function [function]
@@ -718,13 +723,13 @@
     { :kind :function
       :type function.type
       :function function
-      :reify node-reify-function
+      :reify nodeReifyFunction
     }))
 
-(fn node-reify-variable [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local init (if (rawget self :initializer) (ctx:node-id self.initializer) nil))
-  (local id (ctx:fresh-id))
+(fn nodeReifyVariable [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local init (if (rawget self :initializer) (ctx:nodeID self.initializer) nil))
+  (local id (ctx:freshID))
   (local op (Op.OpVariable tid id self.storage init))
   (ctx:instruction op)
   id)
@@ -736,16 +741,16 @@
       :type (Type.pointer type storage)
       :storage storage
       :initializer initializer
-      :reify node-reify-variable
+      :reify nodeReifyVariable
     }))
 
-(fn node-constant-summary [self]
+(fn nodeConstantSummary [self]
   (or (rawget self :summary)
     (do (local summary (fennel.view (rawget self :constant)))
         (set self.summary summary)
         summary)))
 
-(fn type-serialize-fmt [t]
+(fn typeSerializeFmt [t]
   (case t
     {:kind :int : bits : signed}
       (let [words (math.floor (/ (+ bits 31) 32))
@@ -754,28 +759,28 @@
     {:kind :float : bits}
       (if (> bits 32) "d" "f")))
 
-(fn node-reify-constant [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local (existing cid) (ctx:constant-id tid (node-constant-summary self)))
+(fn nodeReifyConstant [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local (existing cid) (ctx:constantID tid (nodeConstantSummary self)))
   (when (not existing)
-    (fn constituent-ids [elem constants]
+    (fn constituentIDs [elem constants]
       (icollect [_ v (ipairs constants)]
-        (ctx:node-id (Node.constant elem v))))
+        (ctx:nodeID (Node.constant elem v))))
     (local op
       (if (= nil self.constant) (Op.OpConstantNull tid cid)
         (case self.type.kind
           :bool
             (if self.constant (Op.OpConstantTrue tid cid) (Op.OpConstantFalse tid cid))
           (where (or :int :float))
-            (Op.OpConstant tid cid (base.serializable-with-fmt (type-serialize-fmt self.type) self.constant))
+            (Op.OpConstant tid cid (base.serializableWithFmt (typeSerializeFmt self.type) self.constant))
           (where (or :vector :array))
-            (Op.OpConstantComposite tid cid (constituent-ids self.type.elem self.constant))
+            (Op.OpConstantComposite tid cid (constituentIDs self.type.elem self.constant))
           :matrix
-            (Op.OpConstantComposite tid cid (constituent-ids (Type.vector self.type.elem self.type.rows) self.constant))
+            (Op.OpConstantComposite tid cid (constituentIDs (Type.vector self.type.elem self.type.rows) self.constant))
           :struct
             (Op.OpConstantComposite tid cid 
-              (icollect [i m (ipairs self.type.field-names)]
-                (ctx:node-id (Node.constant (. self.type.field-types i) (. self.constant m))
+              (icollect [i m (ipairs self.type.fieldNames)]
+                (ctx:nodeID (Node.constant (. self.type.fieldTypes i) (. self.constant m))
           :pointer
             (error (.. "Cannot have a constant non-null pointer, tried to provide value: " self.constant))
           :function
@@ -785,59 +790,59 @@
     (ctx:instruction op))
   cid)
 
-(fn node-reify-spec-constant [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local cid (ctx:fresh-id))
-  (fn constituent-ids [elem constants]
+(fn nodeReifySpecConstant [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local cid (ctx:freshID))
+  (fn constituentIDs [elem constants]
     (icollect [_ v (ipairs constants)]
-      (ctx:node-id (Node.constant elem v))))
+      (ctx:nodeID (Node.constant elem v))))
   (local op
     (case self.type.kind
       :bool
         (if self.constant (Op.OpSpecConstantTrue tid cid) (Op.OpSpecConstantFalse tid cid))
       (where (or :int :float))
-        (Op.OpSpecConstant tid cid (base.serializable-with-fmt (type-serialize-fmt self.type) self.constant))
+        (Op.OpSpecConstant tid cid (base.serializableWithFmt (typeSerializeFmt self.type) self.constant))
       (where (or :vector :array))
-        (Op.OpSpecConstantComposite tid cid (constituent-ids self.type.elem self.constant))
+        (Op.OpSpecConstantComposite tid cid (constituentIDs self.type.elem self.constant))
       :matrix
-        (Op.OpSpecConstantComposite tid cid (constituent-ids (Type.vector self.type.elem self.type.rows) self.constant))
+        (Op.OpSpecConstantComposite tid cid (constituentIDs (Type.vector self.type.elem self.type.rows) self.constant))
       :struct
         (Op.OpSpecConstantComposite tid cid 
-          (icollect [i m (ipairs self.type.field-names)]
-            (ctx:node-id (Node.constant (. self.type.field-types i) (. self.constant m))
+          (icollect [i m (ipairs self.type.fieldNames)]
+            (ctx:nodeID (Node.constant (. self.type.fieldTypes i) (. self.constant m))
       :pointer
-        (error (.. "Cannot declare a spec-constant pointer; tried to provide value: " self.constant))
+        (error (.. "Cannot declare a specConstant pointer; tried to provide value: " self.constant))
       :function
-        (error "Cannot define a spec-constant function. Function nodes are already constants.")
+        (error "Cannot define a specConstant function. Function nodes are already constants.")
       :void
-        (error "Cannot define a spec-constant of type void. Values of void do not exist."))))))
+        (error "Cannot define a specConstant of type void. Values of void do not exist."))))))
   (ctx:instruction op)
   cid)
 
 
-(fn Node.aux.adjust-constant-value [ty value]
+(fn Node.aux.adjustConstantValue [ty value]
   (local value (if (node? value) value.constant value))
-  ; (print :Node.aux.adjust-constant-value ty value)
+  ; (print :Node.aux.adjustConstantValue ty value)
   (case ty
     {:kind :int : signed : bits}
       (if (> bits 62)
         (if (or signed (>= value 0))
             (assert (math.tointeger (math.floor value)) (.. "Cannot represent as integer: " value))
             (error (.. "Cannot represent as unsigned integer: " value)))
-        (let [max-value (^ 2 bits)
+        (let [maxValue (^ 2 bits)
               sign (if (>= value 0) 1 -1)
-              wrapped-value (% (math.modf value) (* sign max-value))]
+              wrappedValue (% (math.modf value) (* sign maxValue))]
           (assert 
             (math.tointeger
-              (if (and (not signed) (< wrapped-value 0)) (+ wrapped-value max-value)
-                wrapped-value)) (.. "Cannot represent as integer: " value))))
+              (if (and (not signed) (< wrappedValue 0)) (+ wrappedValue maxValue)
+                wrappedValue)) (.. "Cannot represent as integer: " value))))
     {:kind :float}
       value ; nothing really needs to happen since all numbers can be converted to floats
     (where (or {:kind :vector : elem} {:kind :array : elem}))
-      (icollect [_ v (ipairs value)] (Node.aux.adjust-constant-value elem v))
+      (icollect [_ v (ipairs value)] (Node.aux.adjustConstantValue elem v))
     {:kind :matrix : elem : rows}
-      (let [col-type (Type.vector elem rows)]
-        (icollect [_ col (ipairs value)] (Node.aux.adjust-constant-value col-type col)))
+      (let [colType (Type.vector elem rows)]
+        (icollect [_ col (ipairs value)] (Node.aux.adjustConstantValue colType col)))
     ))
 
 (fn Node.constant [type value]
@@ -847,28 +852,28 @@
       (Node.new
         { :kind :constant
           :type type
-          :constant (Node.aux.adjust-constant-value type value.constant)
-          :reify node-reify-constant
+          :constant (Node.aux.adjustConstantValue type value.constant)
+          :reify nodeReifyConstant
         }))    
     (Node.new
       { :kind :constant
         :type type
-        :constant (Node.aux.adjust-constant-value type value)
-        :reify node-reify-constant
+        :constant (Node.aux.adjustConstantValue type value)
+        :reify nodeReifyConstant
       })))
 
-(fn Node.spec-constant [type value]
+(fn Node.specConstant [type value]
   (local const (Node.constant type value))
-  (set const.kind :spec-constant)
-  (set const.reify node-reify-spec-constant)
+  (set const.kind :specConstant)
+  (set const.reify nodeReifySpecConstant)
   const)
 
-(fn node-reify-composite [self ctx]
-  (local tid (ctx:type-id self.type))
+(fn nodeReifyComposite [self ctx]
+  (local tid (ctx:typeID self.type))
   (local argids
     (icollect [_ arg (ipairs self.operands)]
-      (ctx:node-id arg)))
-  (local id (ctx:fresh-id))
+      (ctx:nodeID arg)))
+  (local id (ctx:freshID))
   (local op ((. Op self.operation) tid id argids))
   (ctx:instruction op)
   id)
@@ -877,7 +882,7 @@
   (local operation
     (case (or kind :expr)
       :expr :OpCompositeConstruct
-      :spec-constant :OpSpecConstantComposite
+      :specConstant :OpSpecConstantComposite
       :constant :OpConstantComposite
       ))
   (Node.new
@@ -885,11 +890,11 @@
       :type type
       :operation operation
       :operands components
-      :reify node-reify-composite
+      :reify nodeReifyComposite
     }))
 
 
-(fn Node.aux.base-pointer [ptr]
+(fn Node.aux.basePointer [ptr]
   (assert (= ptr.type.kind :pointer) (.. "Node is not a pointer: " (tostring ptr)))
   (var base ptr)
   (while (and (= :expr base.kind) (= :OpAccessChain base.operation))
@@ -897,27 +902,27 @@
   base)
 
 
-(fn node-reify-load [self ctx]
-  (local [source memory-ops] self.operands)
+(fn nodeReifyLoad [self ctx]
+  (local [source memoryOps] self.operands)
 
   ; (assert (not source.type.elem.opaque)
   ;   (.. "Cannot load unsized type from memory: " source.type.summary))
 
-  (local tid (ctx:type-id self.type))
-  (local source-id (ctx:node-id source))
-  (local id (ctx:fresh-id))
+  (local tid (ctx:typeID self.type))
+  (local sourceid (ctx:nodeID source))
+  (local id (ctx:freshID))
 
-  (local memory-ops
-    (if (= source.type.storage.tag :PhysicalStorageBuffer64)
-        (MemoryAccess (MemoryAccess.Aligned source.type.elem.alignment) memory-ops)
-        memory-ops))
+  (local memoryOps
+    (if (= source.type.storage.tag :PhysicalStorageBuffer)
+        (MemoryAccess (MemoryAccess.Aligned source.type.elem.alignment) memoryOps)
+        memoryOps))
 
-  (local op (Op.OpLoad tid id source-id memory-ops))
+  (local op (Op.OpLoad tid id sourceid memoryOps))
   (ctx:instruction op)
 
-  (local base (Node.aux.base-pointer source))
+  (local base (Node.aux.basePointer source))
   (when (and (= base.kind :variable) (not= base.storage StorageClass.Function))
-    (ctx:interface-id (ctx:node-id base))) ; already requested so won't change instructions
+    (ctx:interfaceID (ctx:nodeID base))) ; already requested so won't change instructions
   
   id)
 
@@ -929,25 +934,25 @@
           :type (node.type:deref)
           :operation :OpLoad
           :operands [node]
-          :reify node-reify-load
+          :reify nodeReifyLoad
         })
     _ (error "Cannot dereference non-pointer value")))
 
-(fn Node.aux.bitcast-convert [self type]
+(fn Node.aux.bitcastConvert [self type]
   (if (= self.kind :constant)
     (Node.constant type self.constant)
     (Node.aux.op :OpBitcast type self)))
 
 (fn Node.any? [vec]
   (local bool (Type.bool))
-  (local (prim count) (vec.type:prim-count))
+  (local (prim count) (vec.type:primCount))
   (assert (= bool prim) (.. "Cannot take disjunction of type: " vec.type.summary))
   (if (= 1 count) vec
     (Node.aux.op :OpAny bool vec)))
 
 (fn Node.all? [vec]
   (local bool (Type.bool))
-  (local (prim count) (vec.type:prim-count))
+  (local (prim count) (vec.type:primCount))
   (assert (= bool prim) (.. "Cannot take conjunction of type: " vec.type.summary))
   (if (= 1 count) vec
     (Node.aux.op :OpAll bool vec)))
@@ -960,160 +965,160 @@
 (fn Node.convert [node type]
   (local node (Node.aux.autoderef node))
 
-  (local (n-prim n-count) (node.type:prim-count))
-  (local (t-prim t-count) (type:prim-count))
+  (local (nPrim nCount) (node.type:primCount))
+  (local (tPrim tCount) (type:primCount))
 
   ; cannot convert from vector to scalar
   ; (bitcast is a different operation)
-  (when (not= n-count 1)
-    (assert (= n-count t-count) (.. "Incompatible counts for conversion: " n-count " " t-count " from types: " node.type.summary " " type.summary)))
+  (when (not= nCount 1)
+    (assert (= nCount tCount) (.. "Incompatible counts for conversion: " nCount " " tCount " from types: " node.type.summary " " type.summary)))
 
   (var out node)
 
   ; handle primitive conversion first
-  (when (not= n-prim t-prim)
-    (case (values n-prim t-prim)
-      ({:kind :int :signed n-sign :bits n-bits}
-       {:kind :int :signed t-sign :bits t-bits})
+  (when (not= nPrim tPrim)
+    (case (values nPrim tPrim)
+      ({:kind :int :signed nSign :bits nBits}
+       {:kind :int :signed tSign :bits tBits})
         (do
           ; need to sign extend before casting signed-ness
-          (when (not= t-bits n-bits)
-            (local extended (Type.vector (Type.int t-bits n-sign) n-count))
+          (when (not= tBits nBits)
+            (local extended (Type.vector (Type.int tBits nSign) nCount))
             (set out 
               (Node.aux.op
-                (if n-sign :OpSConvert :OpUConvert)
+                (if nSign :OpSConvert :OpUConvert)
                 extended
                 out)))
-          (when (not= t-sign n-sign)
-            (set out (Node.aux.bitcast-convert out (Type.vector t-prim n-count)))))
-      ({:kind :int :signed n-sign} {:kind :float})
+          (when (not= tSign nSign)
+            (set out (Node.aux.bitcastConvert out (Type.vector tPrim nCount)))))
+      ({:kind :int :signed nSign} {:kind :float})
         (set out
           (Node.aux.op
-            (if n-sign :OpConvertSToF :OpConvertUToF)
-            (Type.vector t-prim n-count)
+            (if nSign :OpConvertSToF :OpConvertUToF)
+            (Type.vector tPrim nCount)
             out))
-      ({:kind :float} {:kind :int :signed t-sign})
+      ({:kind :float} {:kind :int :signed tSign})
         (set out
           (Node.aux.op
-            (if t-sign :OpConvertFToS :OpConvertFToU)
-            (Type.vector t-prim n-count)
+            (if tSign :OpConvertFToS :OpConvertFToU)
+            (Type.vector tPrim nCount)
             out))
       ({:kind :float} {:kind :float})
         (set out
           (Node.aux.op
             :OpFConvert
-            (Type.vector t-prim n-count)
+            (Type.vector tPrim nCount)
             out))))
             
   ; handle scalar-to-vector broadcast
-  (when (not= n-count t-count)
-    (case (Node.aux.common-node-kind-of [out])
-      :constant (set out (Node.constant type (fcollect [i 1 t-count] out.constant)))
-      _ (set out (Node.composite type (fcollect [i 1 t-count] out)))))
+  (when (not= nCount tCount)
+    (case (Node.aux.commonNodeKindOf [out])
+      :constant (set out (Node.constant type (fcollect [i 1 tCount] out.constant)))
+      _ (set out (Node.composite type (fcollect [i 1 tCount] out)))))
     
   out)
 
 
-(fn node-reify-op [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local arg-ids
+(fn nodeReifyOp [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local argIDs
     (icollect [_ arg (ipairs self.operands)]
-      (if (node? arg) (ctx:node-id arg) arg)))
-  (local id (ctx:fresh-id))
-  (local op ((. Op self.operation) tid id (table.unpack arg-ids)))
+      (if (node? arg) (ctx:nodeID arg) arg)))
+  (local id (ctx:freshID))
+  (local op ((. Op self.operation) tid id (table.unpack argIDs)))
   (ctx:instruction op)
   id)
 
-(fn node-reify-spec-constant-op [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local arg-ids
+(fn nodeReifySpecConstantOp [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local argIDs
     (icollect [_ arg (ipairs self.operands)]
-      (if (node? arg) (ctx:node-id arg) arg)))
-  (local id (ctx:fresh-id))
-  (local op (Op.OpSpecConstantOp tid id ((. SpecConstantOp self.operation) (table.unpack arg-ids))))
+      (if (node? arg) (ctx:nodeID arg) arg)))
+  (local id (ctx:freshID))
+  (local op (Op.OpSpecConstantOp tid id ((. SpecConstantOp self.operation) (table.unpack argIDs))))
   (ctx:instruction op)
   id)
 
-(fn node-reify-glsl [self ctx]
-  (local ext-id (ctx:ext-inst-id :GLSL.std.450))
-  (local tid (ctx:type-id self.type))
-  (local arg-ids
+(fn nodeReifyGLSL [self ctx]
+  (local extID (ctx:extInstID :GLSL.std.450))
+  (local tid (ctx:typeID self.type))
+  (local argIDs
     (icollect [_ arg (ipairs self.operands)]
-      (if (node? arg) (ctx:node-id arg) arg)))
-  (local id (ctx:fresh-id))
-  (local op (Op.OpExtInst tid id ext-id ((. ExtGLSL self.operation) (table.unpack arg-ids))))
+      (if (node? arg) (ctx:nodeID arg) arg)))
+  (local id (ctx:freshID))
+  (local op (Op.OpExtInst tid id extID ((. ExtGLSL self.operation) (table.unpack argIDs))))
   (ctx:instruction op)
   id)
 
 
-(fn Type.prim-common-supertype [t0 ...]
+(fn Type.primCommonSupertype [t0 ...]
   (accumulate [t t0 _ t1 (ipairs [...])]
-    (Type.aux.prim-common-supertype t t1)))
+    (Type.aux.primCommonSupertype t t1)))
 
-(fn Type.aux.prim-common-supertype [lt rt]
-  (local (l-prim l-count) (lt:prim-count))
-  (local (r-prim r-count) (rt:prim-count))
+(fn Type.aux.primCommonSupertype [lt rt]
+  (local (lPrim lCount) (lt:primCount))
+  (local (rPrim rCount) (rt:primCount))
 
-  (when (and (not= 1 l-count) (not= 1 r-count))
-    (assert (= l-count r-count) (.. "Cannot find common result for these types: " lt.summary " " rt.summary)))
+  (when (and (not= 1 lCount) (not= 1 rCount))
+    (assert (= lCount rCount) (.. "Cannot find common result for these types: " lt.summary " " rt.summary)))
   
-  (local out-prim
-    (if (= l-prim.kind r-prim.kind :bool) l-prim
+  (local outPrim
+    (if (= lPrim.kind rPrim.kind :bool) lPrim
       (do 
-        (assert (and (not= l-prim.kind :bool) (not= r-prim.kind :bool)) "Cannot mix bool with number.")
-        (local out-kind
-          (if (or (= l-prim.kind :float) (= r-prim.kind :float)) :float :int))
-        (local out-signed
-          (if (or (= l-prim.kind :float) (= r-prim.kind :float)) true (or l-prim.signed r-prim.signed)))
-        (local out-bits
-          (math.max l-prim.bits r-prim.bits))
-        (case out-kind
-          :int (Type.int out-bits out-signed)
-          :float (Type.float out-bits)))))
+        (assert (and (not= lPrim.kind :bool) (not= rPrim.kind :bool)) "Cannot mix bool with number.")
+        (local outKind
+          (if (or (= lPrim.kind :float) (= rPrim.kind :float)) :float :int))
+        (local outSigned
+          (if (or (= lPrim.kind :float) (= rPrim.kind :float)) true (or lPrim.signed rPrim.signed)))
+        (local outBits
+          (math.max lPrim.bits rPrim.bits))
+        (case outKind
+          :int (Type.int outBits outSigned)
+          :float (Type.float outBits)))))
 
-  (Type.vector out-prim (math.max l-count r-count)))
+  (Type.vector outPrim (math.max lCount rCount)))
 
 
 
-(fn Node.aux.make-op-internal [operation type ...]
+(fn Node.aux.makeOpInternal [operation type ...]
   (Node.new
     { :kind :expr
       :type type
       :operation operation
       :operands [...]
-      :reify node-reify-op
+      :reify nodeReifyOp
     }))
 
-(fn Node.aux.make-glsl-op-internal [operation type ...]
+(fn Node.aux.makeGLSLOpInternal [operation type ...]
   (Node.new
     { :kind :expr
       :type type
       :operation operation
       :operands [...]
-      :reify node-reify-glsl
+      :reify nodeReifyGLSL
     }))
 
-(fn Node.aux.make-spec-constant-op-internal [operation type ...]
+(fn Node.aux.makeSpecConstantOpInternal [operation type ...]
   (Node.new
-    { :kind :spec-constant
+    { :kind :specConstant
       :type type
       :operation operation
       :operands [...]
-      :reify node-reify-spec-constant-op
+      :reify nodeReifySpecConstantOp
     }))
 
 (fn Node.aux.op [operation type ...]
-  (local specialized-funcs
-    [ (. Node.constant-impl operation) 
-      (. Node.spec-constant-impl operation)
-      Node.aux.make-op-internal ])
-  (local start-ix
-    (case (Node.aux.common-node-kind-of [...])
+  (local specializedFuncs
+    [ (. Node.constantImpl operation) 
+      (. Node.specConstantImpl operation)
+      Node.aux.makeOpInternal ])
+  (local startIx
+    (case (Node.aux.commonNodeKindOf [...])
       :constant 1
-      :spec-constant 2
+      :specConstant 2
       :expr 3 ))
-  (faccumulate [value nil i start-ix 3 &until value]
-    (let [f (. specialized-funcs i)]
+  (faccumulate [value nil i startIx 3 &until value]
+    (let [f (. specializedFuncs i)]
       (when (not= nil f)
         (local (valid result) (pcall f operation type ...))
         ; (when (not valid) (print result))
@@ -1121,17 +1126,17 @@
 
 
 (fn Node.glsl.op [operation type ...]
-  (local specialized-funcs
-    [ (. Node.constant-impl (.. "GLSL" operation))
-      (. Node.spec-constant-impl (.. "GLSL" operation))
-      Node.aux.make-glsl-op-internal ])
-  (local start-ix
-    (case (Node.aux.common-node-kind-of [...])
+  (local specializedFuncs
+    [ (. Node.constantImpl (.. "GLSL" operation))
+      (. Node.specConstantImpl (.. "GLSL" operation))
+      Node.aux.makeGLSLOpInternal ])
+  (local startIx
+    (case (Node.aux.commonNodeKindOf [...])
       :constant 1
-      :spec-constant 2
+      :specConstant 2
       :expr 3 ))
-  (faccumulate [value nil i start-ix 3 &until value]
-    (let [f (. specialized-funcs i)]
+  (faccumulate [value nil i startIx 3 &until value]
+    (let [f (. specializedFuncs i)]
       (when (not= nil f)
         (local (valid result) (pcall f operation type ...))
         (when (not valid) (print result))
@@ -1142,176 +1147,179 @@
     (Node.deref node)
     node))
 
-(fn node-simple-unop [{ : name :sint sint-op :uint uint-op :float float-op :bool bool-op }]
+(fn nodeSimpleUnop [{ : name :sint sintOp :uint uintOp :float floatOp :bool boolOp }]
   (fn [node]
+    (local node (Node.aux.autoderef node))
     (local opcode
-      (case (node.type:prim-count)
-        {:kind :int :signed true} sint-op
-        {:kind :int :signed false} uint-op
-        {:kind :bool} bool-op
-        {:kind :float} float-op))
+      (case (node.type:primCount)
+        {:kind :int :signed true} sintOp
+        {:kind :int :signed false} uintOp
+        {:kind :bool} boolOp
+        {:kind :float} floatOp))
     (if (= nil opcode)
       (error (.. "Cannot " name " value of type: " node.type.summary)))
     (Node.aux.op
       opcode node.type node)))
 
-(fn node-compare-unop
-  [{ :sint sint-op
-     :uint uint-op
-     :float float-op
-     :bool bool-op }]
+(fn nodeCompareUnop
+  [{ :sint sintOp
+     :uint uintOp
+     :float floatOp
+     :bool boolOp }]
   (fn [node]
-    (local (prim count) (node.type:prim-count))
+    (local node (Node.aux.autoderef node))
+    (local (prim count) (node.type:primCount))
     (local opcode
      (case prim
-        {:kind :int :signed true} sint-op
-        {:kind :int :signed false} uint-op
-        {:kind :bool} bool-op
-        {:kind :float} float-op))
+        {:kind :int :signed true} sintOp
+        {:kind :int :signed false} uintOp
+        {:kind :bool} boolOp
+        {:kind :float} floatOp))
     (if (= nil opcode)
-      (error (.. "Cannot compare values of type: " node.type.summary)))
-    (local out-bool (Type.vector (Type.bool) count))
+      (error (.. "Cannot compare value of type: " node.type.summary)))
+    (local outBool (Type.vector (Type.bool) count))
     (Node.aux.op
-      opcode out-bool node)))
+      opcode outBool node)))
 
-(fn node-glsl-unop [{ : name :sint sint-op :uint uint-op :float float-op :bool bool-op : no-f64? : no-i64? }]
+(fn nodeGLSLUnop [{ : name :sint sintOp :uint uintOp :float floatOp :bool boolOp : nof64? : noi64? }]
   (fn [node]
-    (var (out-prim out-count) (node.type:prim-count))
+    (local node (Node.aux.autoderef node))
+    (var (outPrim outCount) (node.type:primCount))
     (var opcode
-      (case out-prim
-        {:kind :int :signed true} sint-op
-        {:kind :int :signed false} uint-op
-        {:kind :bool} bool-op
-        {:kind :float} float-op))
-    (when (and (= nil opcode) (= out-prim.kind :int))
-      (set opcode float-op)
-      (set out-prim (Type.float 32)))
+      (case outPrim
+        {:kind :int :signed true} sintOp
+        {:kind :int :signed false} uintOp
+        {:kind :bool} boolOp
+        {:kind :float} floatOp))
+    (when (and (= nil opcode) (= outPrim.kind :int))
+      (set opcode floatOp)
+      (set outPrim (Type.float 32)))
     (if (= nil opcode)
       (error (.. "Cannot " name " value of type: " node.type.summary)))
-    (when no-f64?
-      (case out-prim
+    (when nof64?
+      (case outPrim
         (where {:kind :float : bits} (> bits 32))
-          (set out-prim (Type.float 32))))
-    (when no-i64?
-      (case out-prim
+          (set outPrim (Type.float 32))))
+    (when noi64?
+      (case outPrim
         (where {:kind :int : signed : bits} (> bits 32))
-          (set out-prim (Type.int 32 signed))))
-    (local out-type (Type.vector out-prim out-count))
+          (set outPrim (Type.int 32 signed))))
+    (local outType (Type.vector outPrim outCount))
     (Node.glsl.op
-      opcode out-type (out-type node))))
+      opcode outType (outType node))))
 
-(fn node-simple-binop 
+(fn nodeSimpleBinop
   [{ : name 
-     :sint sint-op
-     :uint uint-op
-     :float float-op
-     :bool bool-op }]
+     :sint sintOp
+     :uint uintOp
+     :float floatOp
+     :bool boolOp }]
   (fn [lhs rhs]
     (local lhs (Node.aux.autoderef lhs))
     (local rhs (Node.aux.autoderef rhs))
-    (local out-type
-      (if (and (node? lhs) (node? rhs)) (Type.prim-common-supertype lhs.type rhs.type)
+    (local outType
+      (if (and (node? lhs) (node? rhs)) (Type.primCommonSupertype lhs.type rhs.type)
           (node? lhs) lhs.type
           (node? rhs) rhs.type))
     (local opcode
-      (case (out-type:prim-count)
-        {:kind :int :signed true} sint-op
-        {:kind :int :signed false} uint-op
-        {:kind :bool} bool-op
-        {:kind :float} float-op))
+      (case (outType:primCount)
+        {:kind :int :signed true} sintOp
+        {:kind :int :signed false} uintOp
+        {:kind :bool} boolOp
+        {:kind :float} floatOp))
     (if (= nil opcode)
-      (error (.. "Cannot " name " values of type: " out-type.summary)))
-    (Node.aux.op opcode out-type 
-      (out-type lhs)
-      (out-type rhs))))
+      (error (.. "Cannot " name " values of type: " outType.summary)))
+    (Node.aux.op opcode outType 
+      (outType lhs)
+      (outType rhs))))
 
-(fn node-compare-binop
-  [{ :sint sint-op
-     :uint uint-op
-     :float float-op }]
+(fn nodeCompareBinop
+  [{ :sint sintOp
+     :uint uintOp
+     :float floatOp }]
   (fn [lhs rhs]
     (local lhs (Node.aux.autoderef lhs))
     (local rhs (Node.aux.autoderef rhs))
-    (local out-type
-      (if (and (node? lhs) (node? rhs)) (Type.prim-common-supertype lhs.type rhs.type)
+    (local outType
+      (if (and (node? lhs) (node? rhs)) (Type.primCommonSupertype lhs.type rhs.type)
           (node? lhs) lhs.type
           (node? rhs) rhs.type))
-    (local (_ out-count) (out-type:prim-count))
-    (local out-bool (Type.vector (Type.bool) out-count))
+    (local (_ outCount) (outType:primCount))
+    (local outBool (Type.vector (Type.bool) outCount))
     (local opcode
-      (case (out-type:prim-count)
-        {:kind :int :signed true} sint-op
-        {:kind :int :signed false} uint-op
-        {:kind :float} float-op))
+      (case (outType:primCount)
+        {:kind :int :signed true} sintOp
+        {:kind :int :signed false} uintOp
+        {:kind :float} floatOp))
     (if (= nil opcode)
-      (error (.. "Cannot compare values of type: " out-type.summary)))
-    (Node.aux.op opcode out-bool
-      (out-type lhs)
-      (out-type rhs))))
+      (error (.. "Cannot compare values of type: " outType.summary)))
+    (Node.aux.op opcode outBool
+      (outType lhs)
+      (outType rhs))))
 
-(fn node-glsl-binop
+(fn nodeGLSLBinop
   [{ : name 
-     :sint sint-op
-     :uint uint-op
-     :float float-op
-     :bool bool-op
-     : no-f64?
-     : no-i64? }]
+     :sint sintOp
+     :uint uintOp
+     :float floatOp
+     :bool boolOp
+     : nof64?
+     : noi64? }]
   (fn [lhs rhs]
     (local lhs (Node.aux.autoderef lhs))
     (local rhs (Node.aux.autoderef rhs))
-    (local out-type
-      (if (and (node? lhs) (node? rhs)) (Type.prim-common-supertype lhs.type rhs.type)
+    (local outType
+      (if (and (node? lhs) (node? rhs)) (Type.primCommonSupertype lhs.type rhs.type)
           (node? lhs) lhs.type
           (node? rhs) rhs.type))
-    (var (out-prim out-count) (out-type:prim-count))
+    (var (outPrim outCount) (outType:primCount))
     (var opcode
-      (case out-prim
-        {:kind :int :signed true} sint-op
-        {:kind :int :signed false} uint-op
-        {:kind :bool} bool-op
-        {:kind :float} float-op))
-    (when (and (= nil opcode) (= out-prim.kind :int))
-      (set opcode float-op)
-      (set out-prim (Type.float 32)))
+      (case outPrim
+        {:kind :int :signed true} sintOp
+        {:kind :int :signed false} uintOp
+        {:kind :bool} boolOp
+        {:kind :float} floatOp))
+    (when (and (= nil opcode) (= outPrim.kind :int))
+      (set opcode floatOp)
+      (set outPrim (Type.float 32)))
     (if (= nil opcode)
-      (error (.. "Cannot " name " values of type: " out-type.summary)))
-    (when no-f64?
-      (case out-prim
+      (error (.. "Cannot " name " values of type: " outType.summary)))
+    (when nof64?
+      (case outPrim
         (where {:kind :float : bits} (> bits 32))
-          (set out-prim (Type.float 32))))
-    (when no-i64?
-      (case out-prim
+          (set outPrim (Type.float 32))))
+    (when noi64?
+      (case outPrim
         (where {:kind :int : signed : bits} (> bits 32))
-          (set out-prim (Type.int 32 signed))))
-    (local out-type (Type.vector out-prim out-count))
-    (Node.glsl.op opcode out-type 
-      (out-type lhs)
-      (out-type rhs))))
+          (set outPrim (Type.int 32 signed))))
+    (local outType (Type.vector outPrim outCount))
+    (Node.glsl.op opcode outType 
+      (outType lhs)
+      (outType rhs))))
 
-(fn node-glsl-pack-op
-  [{ : in-type
-     : out-type 
+(fn nodeGLSLPackOp
+  [{ : inType
+     : outType 
      : op }]
   (fn [v]
     (local v (Node.aux.autoderef v))
-    (Node.glsl.op op out-type (in-type v))))
+    (Node.glsl.op op outType (inType v))))
 
 ;
 ; Constant propagation implementations
 ; NOTE: should review to ensure that Node.constant handles wrapping etc. in a way consistent with spirv.
 ; 
 
-(fn Node.aux.const-int-float-convert [operation type node]
+(fn Node.aux.constIntFloatConvert [operation type node]
   (Node.constant type node.constant))
   ; (print operation type node)
-  ; (local prim (type:prim-count))
+  ; (local prim (type:primCount))
   ; (case prim.kind
   ;   :int (Node.constant type (math.floor node.constant))
   ;   :float (Node.constant type node.constant)))
 
-(macro vectorized-const-impl-unop [op ...]
-  (fn vectorize-unop [op]
+(macro vectorizedConstImplUnop [op ...]
+  (fn vectorizeUnop [op]
     `(fn [operation# type# lhs#]
       ; (print operation# lhs#)
       (Node.constant type#
@@ -1319,10 +1327,10 @@
             (icollect [_# l# (ipairs lhs#.constant)] (,op l#))
             (,op lhs#.constant)))))
   `(each [_# op# (ipairs [,...])]
-    (tset Node.constant-impl op# ,(vectorize-unop op))))
+    (tset Node.constantImpl op# ,(vectorizeUnop op))))
 
-(macro vectorized-const-impl-binop [op ...]
-  (fn vectorize-binop [op]
+(macro vectorizedConstImplBinop [op ...]
+  (fn vectorizeBinop [op]
     `(fn [operation# type# lhs# rhs#]
       ; (print operation# lhs# rhs#)
       (Node.constant type#
@@ -1331,95 +1339,95 @@
               (,op l# (. rhs#.constant i#)))
             (,op lhs#.constant rhs#.constant)))))
   `(each [_# op# (ipairs [,...])]
-    (tset Node.constant-impl op# ,(vectorize-binop op))))
+    (tset Node.constantImpl op# ,(vectorizeBinop op))))
 
 
 (each [_ op (ipairs [:OpSConvert :OpUConvert :OpFConvert :OpConvertSToF :OpConvertUToF :OpConvertFToS :OpConvertFToU])]
-  (tset Node.constant-impl op Node.aux.const-int-float-convert))
+  (tset Node.constantImpl op Node.aux.constIntFloatConvert))
 
-(vectorized-const-impl-unop -
+(vectorizedConstImplUnop -
   :OpFNegate :OpSNegate)
 
-(vectorized-const-impl-unop bnot
+(vectorizedConstImplUnop bnot
   :OpNot)
 
-(vectorized-const-impl-unop not
+(vectorizedConstImplUnop not
   :OpLogicalNot)
 
-(vectorized-const-impl-binop +
+(vectorizedConstImplBinop +
   :OpFAdd :OpIAdd)
 
-(vectorized-const-impl-binop -
+(vectorizedConstImplBinop -
   :OpFSub :OpISub)
 
-(vectorized-const-impl-binop *
+(vectorizedConstImplBinop *
   :OpFMul :OpIMul)
 
-(vectorized-const-impl-binop /
+(vectorizedConstImplBinop /
   :OpFDiv :OpSDiv :OpUDiv)
 
-(vectorized-const-impl-binop %
+(vectorizedConstImplBinop %
   :OpFMod :OpSMod :OpUMod)
 
-(vectorized-const-impl-binop ^
+(vectorizedConstImplBinop ^
   :GLSLPow)
 
-(vectorized-const-impl-binop and
+(vectorizedConstImplBinop and
   :OpLogicalAnd)
 
-(vectorized-const-impl-binop or
+(vectorizedConstImplBinop or
   :OpLogicalOr)
 
-(vectorized-const-impl-binop band
+(vectorizedConstImplBinop band
   :OpBitwiseAnd)
 
-(vectorized-const-impl-binop bor
+(vectorizedConstImplBinop bor
   :OpBitwiseOr)
 
-(vectorized-const-impl-binop bxor
+(vectorizedConstImplBinop bxor
   :OpBitwiseXor)
 
-(vectorized-const-impl-binop <
+(vectorizedConstImplBinop <
   :OpSLessThan :OpULessThan :OpFOrdLessThan)
   
-(vectorized-const-impl-binop <=
+(vectorizedConstImplBinop <=
   :OpSLessThanEqual :OpULessThanEqual :OpFOrdLessThanEqual)
 
-(vectorized-const-impl-binop >=
+(vectorizedConstImplBinop >=
   :OpSGreaterThanEqual :OpUGreaterThanEqual :OpFGreaterThanEqual)
 
-(vectorized-const-impl-binop >
+(vectorizedConstImplBinop >
   :OpSGreaterThan :OpUGreaterThan :OpFGreaterThan)
 
-(vectorized-const-impl-binop =
+(vectorizedConstImplBinop =
   :OpIEqual :OpFOrdEqual :OpLogicalEqual)
 
-(vectorized-const-impl-binop not=
+(vectorizedConstImplBinop not=
   :OpINotEqual :OpFOrdNotEqual :OpLogicalNotEqual)
 
 
-(fn Node.aux.constant-impl-min [_ ty lhs rhs]
+(fn Node.aux.constantImplMin [_ ty lhs rhs]
   (Node.constant ty
     (if (= (type lhs.constant) :table) ; both are already of the correct type so must match.
         (icollect [i l (ipairs lhs.constant)]
           (math.min l (. rhs.constant i)))
         (math.min lhs.constant rhs.constant))))
 
-(fn Node.aux.constant-impl-min [_ ty lhs rhs]
+(fn Node.aux.constantImplMax [_ ty lhs rhs]
   (Node.constant ty
     (if (= (type lhs.constant) :table) ; both are already of the correct type so must match.
         (icollect [i l (ipairs lhs.constant)]
           (math.max l (. rhs.constant i)))
         (math.max lhs.constant rhs.constant))))
 
-(set Node.constant-impl.GLSLFMin Node.aux.constant-impl-min)
-(set Node.constant-impl.GLSLSMin Node.aux.constant-impl-min)
-(set Node.constant-impl.GLSLUMin Node.aux.constant-impl-min)
-(set Node.constant-impl.GLSLFMax Node.aux.constant-impl-max)
-(set Node.constant-impl.GLSLSMax Node.aux.constant-impl-max)
-(set Node.constant-impl.GLSLUMax Node.aux.constant-impl-max)
+(set Node.constantImpl.GLSLFMin Node.aux.constantImplMin)
+(set Node.constantImpl.GLSLSMin Node.aux.constantImplMin)
+(set Node.constantImpl.GLSLUMin Node.aux.constantImplMin)
+(set Node.constantImpl.GLSLFMax Node.aux.constantImplMax)
+(set Node.constantImpl.GLSLSMax Node.aux.constantImplMax)
+(set Node.constantImpl.GLSLUMax Node.aux.constantImplMax)
 
-(fn Node.constant-impl.GLSLFma [_ type v0 v1 v2]
+(fn Node.constantImpl.GLSLFma [_ type v0 v1 v2]
   (+ (* v0 v1) v2))
 
 ;
@@ -1427,7 +1435,7 @@
 ; Some listed in the spec are handled elsewhere as they do not have trivial (all id) operands.
 ;
 
-(local spec-constant-shader-ops
+(local specConstantShaderOps
   [ :OpSConvert :OpUConvert :OpFConvert
     :OpSNegate :OpNot
     :OpIAdd :OpISub :OpIMul :OpUDiv :OpSDiv
@@ -1445,109 +1453,109 @@
     :OpQuantizeToF16
   ])
 
-(each [_ op (ipairs spec-constant-shader-ops)]
-  (tset Node.spec-constant-impl op Node.aux.make-spec-constant-op-internal))
+(each [_ op (ipairs specConstantShaderOps)]
+  (tset Node.specConstantImpl op Node.aux.makeSpecConstantOpInternal))
 
 ;
 ; Binary arithmetic operations
 ;
 
 (set Node.neg
-  (node-simple-unop { :name :negate :sint :OpSNegate :uint :OpSNegate :float :OpFNegate }))
+  (nodeSimpleUnop { :name :negate :sint :OpSNegate :uint :OpSNegate :float :OpFNegate }))
 
 (set Node.add
-  (node-simple-binop { :name :add :sint :OpIAdd :uint :OpIAdd :float :OpFAdd }))
+  (nodeSimpleBinop { :name :add :sint :OpIAdd :uint :OpIAdd :float :OpFAdd }))
 
 (set Node.sub
-  (node-simple-binop { :name :subtract :sint :OpISub :uint :OpISub :float :OpFSub }))
+  (nodeSimpleBinop { :name :subtract :sint :OpISub :uint :OpISub :float :OpFSub }))
 
 (set Node.aux.mul
-  (node-simple-binop { :name :multiply :sint :OpIMul :uint :OpIMul :float :OpFMul }))
+  (nodeSimpleBinop { :name :multiply :sint :OpIMul :uint :OpIMul :float :OpFMul }))
 
 (set Node.div
-  (node-simple-binop { :name :divide :sint :OpSDiv :uint :OpUDiv :float :OpFDiv }))
+  (nodeSimpleBinop { :name :divide :sint :OpSDiv :uint :OpUDiv :float :OpFDiv }))
 
 (set Node.mod
-  (node-simple-binop { :name :modulate :sint :OpSMod :uint :OpUMod :float :OpFMod }))
+  (nodeSimpleBinop { :name :modulate :sint :OpSMod :uint :OpUMod :float :OpFMod }))
 
 (set Node.lsl
-  (node-simple-binop { :name "logical shift left" :sint :OpShiftLeftLogical :uint :OpShiftLeftLogical }))
+  (nodeSimpleBinop { :name "logical shift left" :sint :OpShiftLeftLogical :uint :OpShiftLeftLogical }))
 
 (set Node.lsr
-  (node-simple-binop { :name "logical shift right" :sint :OpShiftRightLogical :uint :OpShiftRightLogical }))
+  (nodeSimpleBinop { :name "logical shift right" :sint :OpShiftRightLogical :uint :OpShiftRightLogical }))
 
 (set Node.asr
-  (node-simple-binop { :name "arithmetic shift right" :sint :OpShiftRightArithmetic :uint :OpShiftRightArithmetic }))
+  (nodeSimpleBinop { :name "arithmetic shift right" :sint :OpShiftRightArithmetic :uint :OpShiftRightArithmetic }))
 
 (set Node.rshift
-  (node-simple-binop { :name "shift right" :sint :OpShiftRightArithmetic :uint :OpShiftRightLogical }))
+  (nodeSimpleBinop { :name "shift right" :sint :OpShiftRightArithmetic :uint :OpShiftRightLogical }))
 
 (set Node.band
-  (node-simple-binop { :name "binary and" :sint :OpBitwiseAnd :uint :OpBitwiseAnd }))
+  (nodeSimpleBinop { :name "binary and" :sint :OpBitwiseAnd :uint :OpBitwiseAnd }))
   
 (set Node.bor
-  (node-simple-binop { :name "binary or" :sint :OpBitwiseOr :uint :OpBitwiseOr }))
+  (nodeSimpleBinop { :name "binary or" :sint :OpBitwiseOr :uint :OpBitwiseOr }))
   
 (set Node.bxor
-  (node-simple-binop { :name "binary exclusive or" :sint :OpBitwiseXor :uint :OpBitwiseXor }))
+  (nodeSimpleBinop { :name "binary exclusive or" :sint :OpBitwiseXor :uint :OpBitwiseXor }))
   
 
 (set Node.lt?
-  (node-compare-binop { :sint :OpSLessThan :uint :OpULessThan :float :OpFOrdLessThan }))
+  (nodeCompareBinop { :sint :OpSLessThan :uint :OpULessThan :float :OpFOrdLessThan }))
 
 (set Node.gt?
-  (node-compare-binop { :sint :OpSGreaterThan :uint :OpUGreaterThan :float :OpFOrdGreaterThan }))
+  (nodeCompareBinop { :sint :OpSGreaterThan :uint :OpUGreaterThan :float :OpFOrdGreaterThan }))
 
 (set Node.eq?
-  (node-compare-binop { :sint :OpIEqual :uint :OpIEqual :float :OpFOrdEqual :bool :OpLogicalEqual }))
+  (nodeCompareBinop { :sint :OpIEqual :uint :OpIEqual :float :OpFOrdEqual :bool :OpLogicalEqual }))
 
 (set Node.neq?
-  (node-compare-binop { :sint :OpINotEqual :uint :OpINotEqual :float :OpFOrdNotEqual :bool :OpLogicalNotEqual }))
+  (nodeCompareBinop { :sint :OpINotEqual :uint :OpINotEqual :float :OpFOrdNotEqual :bool :OpLogicalNotEqual }))
 
 (set Node.lte?
-  (node-compare-binop { :sint :OpSLessThanEqual :uint :OpULessThanEqual :float :OpFOrdLessThanEqual }))
+  (nodeCompareBinop { :sint :OpSLessThanEqual :uint :OpULessThanEqual :float :OpFOrdLessThanEqual }))
 
 (set Node.gte?
-  (node-compare-binop { :sint :OpSGreaterThanEqual :uint :OpUGreaterThanEqual :float :OpFOrdGreaterThanEqual }))
+  (nodeCompareBinop { :sint :OpSGreaterThanEqual :uint :OpUGreaterThanEqual :float :OpFOrdGreaterThanEqual }))
 
 
 (set Node.bnot
-  (node-simple-unop { :name "binary not" :sint :OpNot :uint :OpNot }))
+  (nodeSimpleUnop { :name "binary not" :sint :OpNot :uint :OpNot }))
 
 (set Node.breverse
-  (node-simple-unop { :name "binary reverse" :sint :OpBitReverse :uint :OpBitReverse }))
+  (nodeSimpleUnop { :name "binary reverse" :sint :OpBitReverse :uint :OpBitReverse }))
 
 (set Node.bcount
-  (node-simple-unop { :name "bit count" :sint :OpBitCount :uint :OpBitCount }))
+  (nodeSimpleUnop { :name "bit count" :sint :OpBitCount :uint :OpBitCount }))
 
 
 ; TODO: bitfield insert/extract
 
 
 (set Node.infinite?
-  (node-compare-unop { :name "check infiniteness" :float :OpIsInf }))
+  (nodeCompareUnop { :name "check infiniteness" :float :OpIsInf }))
 
 (set Node.nan?
-  (node-compare-unop { :name "check for NaN" :float :OpIsNan }))
+  (nodeCompareUnop { :name "check for NaN" :float :OpIsNan }))
 
 (set Node.unordered
-  { :lt? (node-compare-binop { :float :OpFUnordLessThan })
-    :gt? (node-compare-binop { :float :OpFUnordGreaterThan })
-    :eq? (node-compare-binop { :float :OpFUnordEqual })
-    :neq? (node-compare-binop { :float :OpFUnordNotEqual })
-    :lte? (node-compare-binop { :float :OpFUnordLessThanEqual })
-    :gte? (node-compare-binop { :float :OpFUnordGreaterThanEqual })
+  { :lt? (nodeCompareBinop { :float :OpFUnordLessThan })
+    :gt? (nodeCompareBinop { :float :OpFUnordGreaterThan })
+    :eq? (nodeCompareBinop { :float :OpFUnordEqual })
+    :neq? (nodeCompareBinop { :float :OpFUnordNotEqual })
+    :lte? (nodeCompareBinop { :float :OpFUnordLessThanEqual })
+    :gte? (nodeCompareBinop { :float :OpFUnordGreaterThanEqual })
   })
 
 
 (set Node.!
-  (node-simple-unop { :name "logical not" :bool :OpLogicalNot }))
+  (nodeSimpleUnop { :name "logical not" :bool :OpLogicalNot }))
 
 (set Node.aux.|
-  (node-simple-binop { :name "take disjunction of" :bool :OpLogicalOr }))
+  (nodeSimpleBinop { :name "take disjunction of" :bool :OpLogicalOr }))
   
 (set Node.aux.&
-  (node-simple-binop { :name "take conjunction of" :bool :OpLogicalAnd }))
+  (nodeSimpleBinop { :name "take conjunction of" :bool :OpLogicalAnd }))
 
 (fn Node.| [...]
   (local bool (Type.bool))
@@ -1570,8 +1578,8 @@
   (local lhs (Node.aux.autoderef lhs))
   (local rhs (Node.aux.autoderef rhs))
   
-  (local lhs (if (node? lhs) lhs ((rhs.type:prim-elem) lhs)))
-  (local rhs (if (node? rhs) rhs ((lhs.type:prim-elem) rhs)))
+  (local lhs (if (node? lhs) lhs ((rhs.type:primElem) lhs)))
+  (local rhs (if (node? rhs) rhs ((lhs.type:primElem) rhs)))
 
   (local (lt rt) (values lhs.type rhs.type))
 
@@ -1623,20 +1631,20 @@
             rhs (Node.convert lhs rt.elem)))
 
     (where ({:kind :vector :elem {:kind vk}} {:kind k}) (or (= k :float) (and (= k :int) (= vk :float))))
-      (do (local out-elem (Type.prim-common-supertype lt.elem rt))
-          (local out-vec (Type.vector out-elem lt.count))
+      (do (local outElem (Type.primCommonSupertype lt.elem rt))
+          (local outVec (Type.vector outElem lt.count))
           (Node.aux.op
             :OpVectorTimesScalar
-            out-vec
-            (Node.convert lhs out-vec) (Node.convert rhs out-elem)))
+            outVec
+            (Node.convert lhs outVec) (Node.convert rhs outElem)))
     
     (where ({:kind k} {:kind :vector :elem {:kind vk}}) (or (= k :float) (and (= k :int) (= vk :float))))
-      (do (local out-elem (Type.prim-common-supertype lt rt.elem))
-          (local out-vec (Type.vector out-elem rt.count))
+      (do (local outElem (Type.primCommonSupertype lt rt.elem))
+          (local outVec (Type.vector outElem rt.count))
           (Node.aux.op
             :OpVectorTimesScalar
-            out-vec
-            (Node.convert rhs out-vec) (Node.convert lhs out-elem)))
+            outVec
+            (Node.convert rhs outVec) (Node.convert lhs outElem)))
 
     _ (Node.aux.mul lhs rhs)
   ))
@@ -1649,50 +1657,50 @@
   (assert (and (node? lhs) (node? rhs)) "Dot product arguments must be vectors.")
 
   ; TODO: expose packed dot products, OpSUDot and Op{S,U,SU}DotAccSat via another function with options
-  (local out-type (Type.prim-common-supertype lhs.type rhs.type))
+  (local outType (Type.primCommonSupertype lhs.type rhs.type))
 
-  (local (out-prim out-count) (out-type:prim-count))
+  (local (outPrim outCount) (outType:primCount))
 
-  (if (= out-count 1)
-    (Node.aux.mul (out-prim lhs) (out-prim rhs)) ; might as well allow this for more generic code
+  (if (= outCount 1)
+    (Node.aux.mul (outPrim lhs) (outPrim rhs)) ; might as well allow this for more generic code
     (do 
       (local opcode 
-        (case out-prim
+        (case outPrim
           {:kind :float} :OpDot
           {:kind :int :signed true} :OpSDot
           {:kind :int :signed false} :OpUDot
-          _ (error (.. "Cannot take dot product of value with type: " out-prim.summary))))
+          _ (error (.. "Cannot take dot product of value with type: " outPrim.summary))))
       (Node.aux.op
-        opcode out-prim (out-type lhs) (out-type rhs)))))
+        opcode outPrim (outType lhs) (outType rhs)))))
 
 
 (fn Node.d/dx [value]
   (local value (Node.aux.autoderef value))
-  (local (prim count) (value.type:prim-count))
-  (local out-type (Type.vector (Type.float 32) count))
+  (local (prim count) (value.type:primCount))
+  (local outType (Type.vector (Type.float 32) count))
   (Node.aux.op
-    :OpDPdx out-type (out-type value)))
+    :OpDPdx outType (outType value)))
 
 (fn Node.d/dy [value]
   (local value (Node.aux.autoderef value))
-  (local (prim count) (value.type:prim-count))
-  (local out-type (Type.vector (Type.float 32) count))
+  (local (prim count) (value.type:primCount))
+  (local outType (Type.vector (Type.float 32) count))
   (Node.aux.op
-    :OpDPdy out-type (out-type value)))
+    :OpDPdy outType (outType value)))
 
 (fn Node.fwidth [value]
   (local value (Node.aux.autoderef value))
-  (local (prim count) (value.type:prim-count))
-  (local out-type (Type.vector (Type.float 32) count))
+  (local (prim count) (value.type:primCount))
+  (local outType (Type.vector (Type.float 32) count))
   (Node.aux.op
-    :OpFwidth out-type (out-type value)))
+    :OpFwidth outType (outType value)))
 
 
 ;
 ; Image operations
 ; 
 
-(fn Node.sampled-with [image sampler]
+(fn Node.sampledWith [image sampler]
   (local image (Node.aux.autoderef image))
   (local sampler (Node.aux.autoderef sampler))
   (assert (= sampler.type.kind :sampler)
@@ -1708,9 +1716,9 @@
 (local f64 (Type.float 64))
 (local i64 (Type.int 64 true))
 
-(local const-offsets-type (Type.array (Type.vector i32 2) 4))
+(local constOffsetsType (Type.array (Type.vector i32 2) 4))
 
-(local image-coord-dims
+(local imageCoordDims
   { :1D 1
     :2D 2
     :3D 3
@@ -1720,7 +1728,7 @@
     ; other types are not allowed or cannot be sampled
   })
 
-(local image-op-coord-type
+(local imageOpCoordType
   { :Sample f32
     :Fetch u32
     :Gather f32
@@ -1728,63 +1736,63 @@
   })
 
 
-(fn Node.aux.image-coord [image-type image-op coord ?proj]
+(fn Node.aux.imageCoord [imageType imageOp coord ?proj]
   (local coord (Node.aux.autoderef coord))
 
-  (local base-coord-count (. image-coord-dims image-type.dim.tag))
-  (local (default-coord-prim req-coord-count)
-    (values (. image-op-coord-type image-op)
-            (+ base-coord-count (if (or image-type.array ?proj) 1 0))))
+  (local baseCoordCount (. imageCoordDims imageType.dim.tag))
+  (local (defaultCoordPrim reqCoordCount)
+    (values (. imageOpCoordType imageOp)
+            (+ baseCoordCount (if (or imageType.array ?proj) 1 0))))
 
-  (local coord-prim (if (node? coord) (coord.type:prim-count) default-coord-prim))
+  (local coordPrim (if (node? coord) (coord.type:primCount) defaultCoordPrim))
 
-  (local result-prim (if (= coord-prim.kind default-coord-prim.kind) coord-prim default-coord-prim))
-  (local coord-type (Type.vector result-prim req-coord-count))
-  (coord-type coord))
+  (local resultPrim (if (= coordPrim.kind defaultCoordPrim.kind) coordPrim defaultCoordPrim))
+  (local coordType (Type.vector resultPrim reqCoordCount))
+  (coordType coord))
 
 
-(fn Node.query-image-size [image]
+(fn Node.queryImageSize [image]
   (local image (Node.image image))
-  (local image-type image.type)
-  (local coords (. image-coord-dims image-type.dim.tag))
-  (local result-type (Type.vector u32 coords))
-  (Node.aux.op :OpImageQuerySize result-type image))
+  (local imageType image.type)
+  (local coords (. imageCoordDims imageType.dim.tag))
+  (local resultType (Type.vector u32 coords))
+  (Node.aux.op :OpImageQuerySize resultType image))
 
 
-(fn Node.query-image-size-lod [image lod]
+(fn Node.queryImageSizeLod [image lod]
   (local image (Node.image image))
-  (local image-type image.type)
-  (local coords (. image-coord-dims image-type.dim.tag))
-  (local result-type (Type.vector u32 coords))
-  (Node.aux.op :OpImageQuerySizeLod result-type image (u32 lod)))
+  (local imageType image.type)
+  (local coords (. imageCoordDims imageType.dim.tag))
+  (local resultType (Type.vector u32 coords))
+  (Node.aux.op :OpImageQuerySizeLod resultType image (u32 lod)))
   
 
-(fn Node.query-image-lod [image coord]
+(fn Node.queryImageLod [image coord]
   (local image (Node.aux.autoderef image))
-  (assert (= image.type.kind :sampled-image) (.. "Cannot query lod from non-sampled image type: " image.type.summary))
-  (local image-type image.type.image)
-  (local coord (Node.aux.image-coord image-type :Sample coord))
+  (assert (= image.type.kind :sampledImage) (.. "Cannot query lod from non-sampled image type: " image.type.summary))
+  (local imageType image.type.image)
+  (local coord (Node.aux.imageCoord imageType :Sample coord))
   (Node.aux.op :OpImageQueryLod (Type.vector f32 2) image coord))
 
 
-(fn Node.query-image-levels [image]
+(fn Node.queryImageLevels [image]
   (local image (Node.image image))
-  (local image-type image.type)
+  (local imageType image.type)
   (Node.aux.op :OpImageQueryLevels u32 image))
 
 
-(fn Node.query-image-samples [image]
+(fn Node.queryImageSamples [image]
   (local image (Node.image image))
-  (local image-type image.type)
+  (local imageType image.type)
   (Node.aux.op :OpImageQuerySamples u32 image))
  
 
 ; utility to help make all the various instructions appear more uniform
-(fn Node.aux.collect-image-operands [...]
-  (local image-op-properties {})
-  (local image-operands-list [])
+(fn Node.aux.collectImageOperands [...]
+  (local imageOpProperties {})
+  (local imageOperandsList [])
   (fn go [...]
-    (local (consumed new-value)
+    (local (consumed newValue)
       (case ...
         (where v (= (enum? v) :ImageOperands)) (values 1 v)
         (:Bias v) (values 2 (ImageOperands.Bias v))
@@ -1803,40 +1811,40 @@
         :ZeroExtend (values 1 ImageOperands.ZeroExtend)
         :Nontemporal (values 1 ImageOperands.Nontemporal)
 
-        :Sparse (do (set image-op-properties.Sparse true) 1)
-        :Proj (do (set image-op-properties.Proj true) 1)
-        (:Dref d) (do (set image-op-properties.Dref d) 2)
+        :Sparse (do (set imageOpProperties.Sparse true) 1)
+        :Proj (do (set imageOpProperties.Proj true) 1)
+        (:Dref d) (do (set imageOpProperties.Dref d) 2)
       ))
-    (when (not= nil new-value)
-      (table.insert image-operands-list new-value))
+    (when (not= nil newValue)
+      (table.insert imageOperandsList newValue))
     (if (not= nil consumed)
       (go (select (+ consumed 1) ...))))
 
   (go ...)
 
-  (local image-operands
-    (if (not= 0 (# image-operands-list))
-      (ImageOperands (table.unpack image-operands-list))))
-  (values image-op-properties image-operands))
+  (local imageOperands
+    (if (not= 0 (# imageOperandsList))
+      (ImageOperands (table.unpack imageOperandsList))))
+  (values imageOpProperties imageOperands))
 
-(fn Node.aux.reify-image-operands [ctx ops]
-  (base.map-operands ops (fn [arg desc]
-    (if (node? arg) (ctx:node-id arg)
+(fn Node.aux.reifyImageOperands [ctx ops]
+  (base.mapOperands ops (fn [arg desc]
+    (if (node? arg) (ctx:nodeID arg)
         (enum? arg) arg))))
 
-(fn node-reify-image-op [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local arg-ids
+(fn nodeReifyImageOp [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local argIDs
     (icollect [_ arg (ipairs self.operands)]
-      (if (enum? arg) (Node.aux.reify-image-operands ctx arg)
-          (node? arg) (ctx:node-id arg))))
-  (local id (ctx:fresh-id))
-  (local op ((. Op self.operation) tid id (table.unpack arg-ids)))
+      (if (enum? arg) (Node.aux.reifyImageOperands ctx arg)
+          (node? arg) (ctx:nodeID arg))))
+  (local id (ctx:freshID))
+  (local op ((. Op self.operation) tid id (table.unpack argIDs)))
   (ctx:instruction op)
   id)
 
 
-(local image-format-component-count
+(local imageFormatComponentCount
   {
     ; rgba
     :Rgba32f 4
@@ -1888,105 +1896,105 @@
     :R64ui 1
   })
 
-(fn Node.aux.image-write [ctx image coord texel ...]
+(fn Node.aux.imageWrite [ctx image coord texel ...]
   (local image (Node.aux.autoderef image))
   (assert (= image.type.kind :image) (.. "Cannot write texel data to non-image type: " image.type.summary))
   (assert (= image.type.usage :storage) (.. "Cannot write texel data to non-storage image: " image.type.summary))
-  (local image-type image.type)
+  (local imageType image.type)
 
-  (local (properties image-operands) (Node.aux.collect-image-operands ...))
+  (local (properties imageOperands) (Node.aux.collectImageOperands ...))
   
   (assert (not (or properties.Proj (not= nil properties.Dref) properties.Sparse))
           (.. "Invalid additional options :Proj/:Dref/:Sparse specified for image write: " image.type.summary))
 
-  (assert (not (or (?. image-operands :Bias)
-                  ;  (and (not sampled-image?) (?. image-operands :Lod))
-                   (?. image-operands :Grad)
-                   (?. image-operands :ConstOffsets)
-                   (?. image-operands :MinLod)
-                   (?. image-operands :MakeTexelVisible)))
-          (.. "Invalid image operands present for image write: " (tostring image-operands) " " image.type.summary))
+  (assert (not (or (?. imageOperands :Bias)
+                  ;  (and (not sampledImage?) (?. imageOperands :Lod))
+                   (?. imageOperands :Grad)
+                   (?. imageOperands :ConstOffsets)
+                   (?. imageOperands :MinLod)
+                   (?. imageOperands :MakeTexelVisible)))
+          (.. "Invalid image operands present for image write: " (tostring imageOperands) " " image.type.summary))
   
-  (local coord (Node.aux.image-coord image-type :Write coord))
+  (local coord (Node.aux.imageCoord imageType :Write coord))
 
   (local texel (Node.aux.autoderef texel))
   (assert (node? texel) "Texel value for image write must be a typed node. Try casting to a vector if necessary.")
-  (local (texel-prim texel-count) (texel.type:prim-count))
+  (local (texelPrim texelCount) (texel.type:primCount))
 
-  (when (not= image-type.format.tag :Unknown)
-    (assert (>= texel-count (. image-format-component-count image-type.format.tag))
-            (.. "Input texel has too few components for image format: " texel.type.summary image-type.format.tag)))
+  (when (not= imageType.format.tag :Unknown)
+    (assert (>= texelCount (. imageFormatComponentCount imageType.format.tag))
+            (.. "Input texel has too few components for image format: " texel.type.summary imageType.format.tag)))
 
-  (local texel-final-type (Type.vector image-type.elem texel-count))
-  (local texel (texel-final-type texel))
+  (local texelFinalType (Type.vector imageType.elem texelCount))
+  (local texel (texelFinalType texel))
 
-  (local base-coord-count (. image-coord-dims image-type.dim.tag))
-  (local base-vec-i32 (Type.vector i32 base-coord-count))
-  (local image-operands
-    (if image-operands (base.map-operands image-operands (fn [arg desc tag]
+  (local baseCoordCount (. imageCoordDims imageType.dim.tag))
+  (local baseVecI32 (Type.vector i32 baseCoordCount))
+  (local imageOperands
+    (if imageOperands (base.mapOperands imageOperands (fn [arg desc tag]
       (case tag
         :Lod (u32 arg)
-        :ConstOffset (base-vec-i32 arg)
-        :Offset (base-vec-i32 arg)
+        :ConstOffset (baseVecI32 arg)
+        :Offset (baseVecI32 arg)
         :Sample (u32 arg)
       )))))
 
   (local op
     (Op.OpImageWrite
-      (ctx:node-id image) (ctx:node-id coord) (ctx:node-id texel)
-      (if image-operands (Node.aux.reify-image-operands ctx image-operands))))
+      (ctx:nodeID image) (ctx:nodeID coord) (ctx:nodeID texel)
+      (if imageOperands (Node.aux.reifyImageOperands ctx imageOperands))))
 
   (ctx:instruction op))
 
 (fn Node.sample [image coord ...]
   (local image (Node.aux.autoderef image))
-  (assert (= image.type.kind :sampled-image) (.. "Cannot sample from non-sampled image type: " image.type.summary))
-  (local image-type image.type.image)
+  (assert (= image.type.kind :sampledImage) (.. "Cannot sample from non-sampled image type: " image.type.summary))
+  (local imageType image.type.image)
 
-  (local (properties image-operands) (Node.aux.collect-image-operands ...))
-  (assert (not (and properties.Proj image-type.array))
+  (local (properties imageOperands) (Node.aux.collectImageOperands ...))
+  (assert (not (and properties.Proj imageType.array))
           (.. "Cannot use Projective sampling on an Array image: " image.type.summary))
   
-  (local coord (Node.aux.image-coord image-type :Sample coord properties.Proj))
+  (local coord (Node.aux.imageCoord imageType :Sample coord properties.Proj))
 
-  (local explicit-lod?
-    (or (?. image-operands :Lod) (?. image-operands :Grad)))
+  (local explicitLod?
+    (or (?. imageOperands :Lod) (?. imageOperands :Grad)))
   
-  (assert (not (or (and explicit-lod? (?. image-operands :Bias))
-                   (and (?. image-operands :Lod) (?. image-operands :Grad))
-                   (and (or explicit-lod? (?. image-operands :Lod)) (?. image-operands :MinLod))
-                   (?. image-operands :ConstOffsets)
-                   (?. image-operands :MakeTexelAvailable)
-                   (?. image-operands :MakeTexelVisible)))
-          (.. "Invalid image operands present for image sample: " (tostring image-operands)))
+  (assert (not (or (and explicitLod? (?. imageOperands :Bias))
+                   (and (?. imageOperands :Lod) (?. imageOperands :Grad))
+                   (and (or explicitLod? (?. imageOperands :Lod)) (?. imageOperands :MinLod))
+                   (?. imageOperands :ConstOffsets)
+                   (?. imageOperands :MakeTexelAvailable)
+                   (?. imageOperands :MakeTexelVisible)))
+          (.. "Invalid image operands present for image sample: " (tostring imageOperands)))
   
-  (local result-count (if properties.Dref 1 4))
-  (var result-type (Type.vector image-type.elem result-count))
+  (local resultCount (if properties.Dref 1 4))
+  (var resultType (Type.vector imageType.elem resultCount))
   (when properties.Sparse 
-    (set result-type (Type.struct [i32 result-type] [:0 :1])))
+    (set resultType (Type.struct [i32 resultType] [:0 :1])))
 
   (local dref (if (not= nil properties.Dref) (f32 properties.Dref)))
 
   (local operands [image coord])
   (when dref (table.insert operands dref))
 
-  (local base-coord-count (. image-coord-dims image-type.dim.tag))
-  (local base-vec-f32 (Type.vector f32 base-coord-count))
-  (local base-vec-i32 (Type.vector i32 base-coord-count))
-  (local image-operands
-    (if image-operands (base.map-operands image-operands (fn [arg desc tag]
+  (local baseCoordCount (. imageCoordDims imageType.dim.tag))
+  (local baseVecF32 (Type.vector f32 baseCoordCount))
+  (local baseVecI32 (Type.vector i32 baseCoordCount))
+  (local imageOperands
+    (if imageOperands (base.mapOperands imageOperands (fn [arg desc tag]
       (case tag
         :Lod (f32 arg)
-        :Grad (base-vec-f32 arg)
-        :ConstOffset (base-vec-i32 arg)
-        :Offset (base-vec-i32 arg)
-        :ConstOffsets (const-offsets-type arg)
+        :Grad (baseVecF32 arg)
+        :ConstOffset (baseVecI32 arg)
+        :Offset (baseVecI32 arg)
+        :ConstOffsets (constOffsetsType arg)
         :Sample (u32 arg)
         :MinLod (f32 arg)
       )))))
 
-  (when image-operands
-    (table.insert operands image-operands))
+  (when imageOperands
+    (table.insert operands imageOperands))
 
   (local opcode
     (.. "OpImage"
@@ -1994,70 +2002,70 @@
       "Sample"
       (if properties.Proj :Proj "")
       (if (not= nil properties.Dref) :Dref "")
-      (if explicit-lod?
+      (if explicitLod?
         :ExplicitLod :ImplicitLod)))
 
   (Node.new
     { :kind :expr
-      :type result-type
+      :type resultType
       :operation opcode
       :operands operands
-      :reify node-reify-image-op
+      :reify nodeReifyImageOp
     }))
 
 
 (fn Node.gather [image coord component? ...]
   (local image (Node.aux.autoderef image)) ; allow fetch on sampled images by extracting image from combined object
-  (assert (= image.type.kind :sampled-image) (.. "Cannot gather from non-sampled image type: " image.type.summary))
-  (local image-type image.type.image)
+  (assert (= image.type.kind :sampledImage) (.. "Cannot gather from non-sampled image type: " image.type.summary))
+  (local imageType image.type.image)
 
-  (local coord (Node.aux.image-coord image-type :Gather coord))
+  (local coord (Node.aux.imageCoord imageType :Gather coord))
   
-  (local (properties image-operands) 
+  (local (properties imageOperands) 
     (if (not= :string (type component?))
-      (Node.aux.collect-image-operands ...)
-      (Node.aux.collect-image-operands component? ...)))
+      (Node.aux.collectImageOperands ...)
+      (Node.aux.collectImageOperands component? ...)))
 
   (local component? (if (not= :string (type component?)) component?))
 
   (assert (not properties.Proj)
-          (.. "Cannot use Projective coordinates in image gather: " image-type.summary))
+          (.. "Cannot use Projective coordinates in image gather: " imageType.summary))
 
-  (assert (not (or (?. image-operands :Bias)
-                  ;  (?. image-operands :Lod)
-                   (?. image-operands :Grad)
-                   (?. image-operands :MinLod)
-                   (?. image-operands :MakeTexelAvailable)
-                   (?. image-operands :MakeTexelVisible)))
-          (.. "Invalid image operands present for image gather: " (tostring image-operands)))
+  (assert (not (or (?. imageOperands :Bias)
+                  ;  (?. imageOperands :Lod)
+                   (?. imageOperands :Grad)
+                   (?. imageOperands :MinLod)
+                   (?. imageOperands :MakeTexelAvailable)
+                   (?. imageOperands :MakeTexelVisible)))
+          (.. "Invalid image operands present for image gather: " (tostring imageOperands)))
 
-  (var result-type (Type.vector image-type.elem 4))
+  (var resultType (Type.vector imageType.elem 4))
   (when properties.Sparse 
-    (set result-type (Type.struct [i32 result-type] [:0 :1])))
+    (set resultType (Type.struct [i32 resultType] [:0 :1])))
 
-  (local base-coord-count (. image-coord-dims image-type.dim.tag))
-  (local base-vec-i32 (Type.vector i32 base-coord-count))
-  (local image-operands
-    (if image-operands (base.map-operands image-operands (fn [arg desc tag]
+  (local baseCoordCount (. imageCoordDims imageType.dim.tag))
+  (local baseVecI32 (Type.vector i32 baseCoordCount))
+  (local imageOperands
+    (if imageOperands (base.mapOperands imageOperands (fn [arg desc tag]
       (case tag
         :Lod (u32 arg)
-        :ConstOffset (base-vec-i32 arg)
-        :ConstOffsets (const-offsets-type arg)
-        :Offset (base-vec-i32 arg)
+        :ConstOffset (baseVecI32 arg)
+        :ConstOffsets (constOffsetsType arg)
+        :Offset (baseVecI32 arg)
         :Sample (u32 arg)
       )))))
 
   (assert (not (and (not= nil properties.Dref) component?))
           "Image gather operation must either use :Dref or provide component index, but not both")
 
-  (local dref-or-component 
+  (local drefOrComponent 
     (if (not= nil properties.Dref) (f32 properties.Dref)
         component? (u32 component?)
         (u32 0)))
 
-  (local operands [image coord dref-or-component])
-  (when image-operands
-    (table.insert operands image-operands))
+  (local operands [image coord drefOrComponent])
+  (when imageOperands
+    (table.insert operands imageOperands))
 
   (local opcode
     (.. "OpImage"
@@ -2067,74 +2075,74 @@
 
   (Node.new
     { :kind :expr
-      :type result-type
+      :type resultType
       :operation opcode
       :operands operands
-      :reify node-reify-image-op
+      :reify nodeReifyImageOp
     }))
 
 
-(fn Node.image [maybe-sampled-image]
-  (local maybe-sampled-image (Node.aux.autoderef maybe-sampled-image))
-  (case maybe-sampled-image.type.kind
-    :image maybe-sampled-image
-    :sampled-image (Node.aux.op :OpImage maybe-sampled-image.type.image maybe-sampled-image)
-    other (error (.. "Cannot extract image from non-(sampled-)image argument: " maybe-sampled-image.type.summary))))
+(fn Node.image [maybeSampledImage]
+  (local maybeSampledImage (Node.aux.autoderef maybeSampledImage))
+  (case maybeSampledImage.type.kind
+    :image maybeSampledImage
+    :sampledImage (Node.aux.op :OpImage maybeSampledImage.type.image maybeSampledImage)
+    other (error (.. "Cannot extract image from non-(sampled-)image argument: " maybeSampledImage.type.summary))))
 
 
 (fn Node.fetch [image coord ...]
   (local image (Node.image image)) ; allow fetch on sampled images by extracting image from combined object
-  (local image-type image.type)
-  (local sampled-image? (= image-type.usage :texture))
+  (local imageType image.type)
+  (local sampledImage? (= imageType.usage :texture))
 
-  (assert (not (and sampled-image? (= image-type.dim.tag :Cube)))
+  (assert (not (and sampledImage? (= imageType.dim.tag :Cube)))
     (.. "Cannot fetch from cube image: " image.type.summary))
 
-  (local coord (Node.aux.image-coord image-type :Fetch coord))
+  (local coord (Node.aux.imageCoord imageType :Fetch coord))
   
-  (local (properties image-operands) (Node.aux.collect-image-operands ...))
+  (local (properties imageOperands) (Node.aux.collectImageOperands ...))
   (assert (not (or properties.Proj properties.Dref))
           (.. "Cannot use Projective or Depth in image fetch/read: " image.type.summary))
 
-  (assert (not (or (?. image-operands :Bias)
-                   (and (not sampled-image?) (?. image-operands :Lod))
-                   (?. image-operands :Grad)
-                   (?. image-operands :ConstOffsets)
-                   (?. image-operands :MinLod)
-                   (?. image-operands :MakeTexelAvailable)
-                   (and sampled-image? (?. image-operands :MakeTexelVisible))))
-          (.. "Invalid image operands present for image fetch/read: " (tostring image-operands) " " image.type.summary))
+  (assert (not (or (?. imageOperands :Bias)
+                   (and (not sampledImage?) (?. imageOperands :Lod))
+                   (?. imageOperands :Grad)
+                   (?. imageOperands :ConstOffsets)
+                   (?. imageOperands :MinLod)
+                   (?. imageOperands :MakeTexelAvailable)
+                   (and sampledImage? (?. imageOperands :MakeTexelVisible))))
+          (.. "Invalid image operands present for image fetch/read: " (tostring imageOperands) " " image.type.summary))
   
-  (var result-type (Type.vector image-type.elem 4))
+  (var resultType (Type.vector imageType.elem 4))
   (when properties.Sparse 
-    (set result-type (Type.struct [i32 result-type] [:0 :1])))
+    (set resultType (Type.struct [i32 resultType] [:0 :1])))
 
-  (local base-coord-count (. image-coord-dims image-type.dim.tag))
-  (local base-vec-i32 (Type.vector i32 base-coord-count))
-  (local image-operands
-    (if image-operands (base.map-operands image-operands (fn [arg desc tag]
+  (local baseCoordCount (. imageCoordDims imageType.dim.tag))
+  (local baseVecI32 (Type.vector i32 baseCoordCount))
+  (local imageOperands
+    (if imageOperands (base.mapOperands imageOperands (fn [arg desc tag]
       (case tag
         :Lod (u32 arg)
-        :ConstOffset (base-vec-i32 arg)
-        :Offset (base-vec-i32 arg)
+        :ConstOffset (baseVecI32 arg)
+        :Offset (baseVecI32 arg)
         :Sample (u32 arg)
       )))))
 
   (local operands [image coord])
-  (when image-operands
-    (table.insert operands image-operands))
+  (when imageOperands
+    (table.insert operands imageOperands))
 
   (local opcode
     (.. "OpImage"
       (if properties.Sparse :Sparse "")
-      (if sampled-image? "Fetch" "Read")))
+      (if sampledImage? "Fetch" "Read")))
 
   (Node.new
     { :kind :expr
-      :type result-type
+      :type resultType
       :operation opcode
       :operands operands
-      :reify node-reify-image-op
+      :reify nodeReifyImageOp
     }))
 
 ;
@@ -2152,19 +2160,19 @@
 (fn Node.subgroup.ballot [value]
   (Node.aux.op :OpGroupNonUniformBallot uvec4 SubgroupScope (bool value)))
 
-(fn Node.subgroup.inverse-ballot [value]
+(fn Node.subgroup.inverseBallot [value]
   (Node.aux.op :OpGroupNonUniformInverseBallot bool SubgroupScope (uvec4 value)))
 
-(fn Node.subgroup.inverse-ballot-at-index [value index]
+(fn Node.subgroup.inverseBallotAtIndex [value index]
   (Node.aux.op :OpGroupNonUniformBallotBitExtract bool SubgroupScope (uvec4 value) (u32 index)))
   
-(fn Node.subgroup.ballot-bit-count [value]
+(fn Node.subgroup.ballotBitCount [value]
   (Node.aux.op :OpGroupNonUniformBallotBitCount u32 SubgroupScope (uvec4 value)))
   
-(fn Node.subgroup.ballot-lsb [value]
+(fn Node.subgroup.ballotLSB [value]
   (Node.aux.op :OpGroupNonUniformBallotFindLSB u32 SubgroupScope (uvec4 value)))
   
-(fn Node.subgroup.ballot-msb [value]
+(fn Node.subgroup.ballotMSB [value]
   (Node.aux.op :OpGroupNonUniformBallotFindMSB u32 SubgroupScope (uvec4 value)))
 
 (fn Node.subgroup.broadcast [value index]
@@ -2174,21 +2182,21 @@
     _ (error (.. "Cannot broadcast non-vector non-scalar value, got: " value.type.summary)))
   (Node.aux.op :OpGroupNonUniformBroadcast value.type SubgroupScope value (u32 index)))
 
-(fn Node.subgroup.broadcast-quad [value index]
+(fn Node.subgroup.broadcastQuad [value index]
   (local value (Node.aux.autoderef value))
   (case value.type.kind
     (where (or :int :float :bool :vector)) nil
     _ (error (.. "Cannot broadcast non-vector non-scalar value, got: " value.type.summary)))
   (Node.aux.op :OpGroupNonUniformQuadBroadcast value.type SubgroupScope value (u32 index)))
 
-(fn Node.subgroup.broadcast-first [value]
+(fn Node.subgroup.broadcastFirst [value]
   (local value (Node.aux.autoderef value))
   (case value.type.kind
     (where (or :int :float :bool :vector)) nil
     _ (error (.. "Cannot broadcast non-vector non-scalar value, got: " value.type.summary)))
   (Node.aux.op :OpGroupNonUniformBroadcastFirst value.type SubgroupScope value))
 
-(fn Node.subgroup.swap-quad [value direction]
+(fn Node.subgroup.swapQuad [value direction]
   (local value (Node.aux.autoderef value))
   (case value.type.kind
     (where (or :int :float :bool :vector)) nil
@@ -2208,87 +2216,87 @@
     _ (error (.. "Cannot shuffle non-vector non-scalar value, got: " value.type.summary)))
   (Node.aux.op :OpGroupNonUniformShuffle value.type SubgroupScope value (u32 index)))
 
-(fn Node.subgroup.shuffle-xor [value mask]
+(fn Node.subgroup.shuffleXor [value mask]
   (local value (Node.aux.autoderef value))
   (case value.type.kind
     (where (or :int :float :bool :vector)) nil
     _ (error (.. "Cannot shuffle non-vector non-scalar value, got: " value.type.summary)))
   (Node.aux.op :OpGroupNonUniformBroadcast value.type SubgroupScope value (u32 mask)))
 
-(fn Node.subgroup.shuffle-up [value delta]
+(fn Node.subgroup.shuffleUp [value delta]
   (local value (Node.aux.autoderef value))
   (case value.type.kind
     (where (or :int :float :bool :vector)) nil
     _ (error (.. "Cannot shuffle non-vector non-scalar value, got: " value.type.summary)))
   (Node.aux.op :OpGroupNonUniformBroadcast value.type SubgroupScope value (u32 delta)))
   
-(fn Node.subgroup.shuffle-down [value delta]
+(fn Node.subgroup.shuffleDown [value delta]
   (local value (Node.aux.autoderef value))
   (case value.type.kind
     (where (or :int :float :bool :vector)) nil
     _ (error (.. "Cannot shuffle non-vector non-scalar value, got: " value.type.summary)))
   (Node.aux.op :OpGroupNonUniformBroadcast value.type SubgroupScope value (u32 delta)))
 
-(fn node-subgroup-op [{ :name name :sint sint-op :uint uint-op :float float-op :bool bool-op }]
-  (fn [value ?group-op ?cluster]
+(fn nodeSubgroupOp [{ :name name :sint sintOp :uint uintOp :float floatOp :bool boolOp }]
+  (fn [value ?groupOp ?cluster]
     (local value (Node.aux.autoderef value))
-    (local (prim count) (value.type:prim-count))
+    (local (prim count) (value.type:primCount))
     (local opcode
       (case prim
-        {:kind :int : signed} (if signed sint-op uint-op)
-        {:kind :float} float-op
-        {:kind :bool} bool-op
+        {:kind :int : signed} (if signed sintOp uintOp)
+        {:kind :float} floatOp
+        {:kind :bool} boolOp
         _ (error (.. "Cannot " name " values (within subgroup) of type: " value.type.summary))))
-    (local group-op
+    (local groupOp
       (if 
-        (= nil ?group-op) GroupOperation.Reduce
-        (= (enum? ?group-op) :GroupOperation) ?group-op
-        (= (type ?group-op) :string) (. GroupOperation ?group-op)
-        (error (.. "Unrecognized group operation: " (tostring ?group-op)))))
+        (= nil ?groupOp) GroupOperation.Reduce
+        (= (enum? ?groupOp) :GroupOperation) ?groupOp
+        (= (type ?groupOp) :string) (. GroupOperation ?groupOp)
+        (error (.. "Unrecognized group operation: " (tostring ?groupOp)))))
     (local cluster
-      (case group-op.tag
+      (case groupOp.tag
         :ClusteredReduce
           (do (assert ?cluster "Cluster size required for ClusteredReduce subgroup operation.")
               (local ?cluster (u32 ?cluster))
-              (assert (or (= ?cluster.kind :constant) (= ?cluster.kind :spec-constant))
+              (assert (or (= ?cluster.kind :constant) (= ?cluster.kind :specConstant))
                 (.. "Cluster size argument must be constant, got: " (tostring ?cluster)))
               ?cluster)
         (where (or :PartitionedReduceNV :PartitionedInclusiveScanNV :PartitionedExclusiveScanNV))
           (do (assert ?cluster "Partition required for PartitionedNV subgroup operation.")
               (uvec4 ?cluster))))
     
-    (Node.aux.op opcode value.type SubgroupScope group-op value cluster)))
+    (Node.aux.op opcode value.type SubgroupScope groupOp value cluster)))
 
 
 (set Node.subgroup.add
-  (node-subgroup-op { :name "add" :sint :OpGroupNonUniformIAdd :uint :OpGroupNonUniformIAdd :float :OpGroupNonUniformFAdd }))
+  (nodeSubgroupOp { :name "add" :sint :OpGroupNonUniformIAdd :uint :OpGroupNonUniformIAdd :float :OpGroupNonUniformFAdd }))
 
 (set Node.subgroup.mul
-  (node-subgroup-op { :name "multiply" :sint :OpGroupNonUniformIMul :uint :OpGroupNonUniformIMul :float :OpGroupNonUniformFMul }))
+  (nodeSubgroupOp { :name "multiply" :sint :OpGroupNonUniformIMul :uint :OpGroupNonUniformIMul :float :OpGroupNonUniformFMul }))
 
 (set Node.subgroup.min
-  (node-subgroup-op { :name "find minimum" :sint :OpGroupNonUniformSMin :uint :OpGroupNonUniformUMin :float :OpGroupNonUniformFMin }))
+  (nodeSubgroupOp { :name "find minimum" :sint :OpGroupNonUniformSMin :uint :OpGroupNonUniformUMin :float :OpGroupNonUniformFMin }))
   
 (set Node.subgroup.max
-  (node-subgroup-op { :name "find maximum" :sint :OpGroupNonUniformSMax :uint :OpGroupNonUniformUMax :float :OpGroupNonUniformFMax }))
+  (nodeSubgroupOp { :name "find maximum" :sint :OpGroupNonUniformSMax :uint :OpGroupNonUniformUMax :float :OpGroupNonUniformFMax }))
 
 (set Node.subgroup.band
-  (node-subgroup-op { :name "bitwise and" :sint :OpGroupNonUniformBitwiseAnd :uint :OpGroupNonUniformBitwiseAnd }))
+  (nodeSubgroupOp { :name "bitwise and" :sint :OpGroupNonUniformBitwiseAnd :uint :OpGroupNonUniformBitwiseAnd }))
   
 (set Node.subgroup.bor
-  (node-subgroup-op { :name "bitwise or" :sint :OpGroupNonUniformBitwiseOr :uint :OpGroupNonUniformBitwiseOr }))
+  (nodeSubgroupOp { :name "bitwise or" :sint :OpGroupNonUniformBitwiseOr :uint :OpGroupNonUniformBitwiseOr }))
   
 (set Node.subgroup.bxor
-  (node-subgroup-op { :name "bitwise xor" :sint :OpGroupNonUniformBitwiseXor :uint :OpGroupNonUniformBitwiseXor }))
+  (nodeSubgroupOp { :name "bitwise xor" :sint :OpGroupNonUniformBitwiseXor :uint :OpGroupNonUniformBitwiseXor }))
   
 (set Node.subgroup.and
-  (node-subgroup-op { :name "logical and" :bool :OpGroupNonUniformLogicalAnd }))
+  (nodeSubgroupOp { :name "logical and" :bool :OpGroupNonUniformLogicalAnd }))
   
 (set Node.subgroup.or
-  (node-subgroup-op { :name "logical or" :bool :OpGroupNonUniformLogicalAnd }))
+  (nodeSubgroupOp { :name "logical or" :bool :OpGroupNonUniformLogicalAnd }))
   
 (set Node.subgroup.xor
-  (node-subgroup-op { :name "logical xor" :bool :OpGroupNonUniformLogicalAnd }))
+  (nodeSubgroupOp { :name "logical xor" :bool :OpGroupNonUniformLogicalAnd }))
 
 
 (fn Node.subgroup.all? [value]
@@ -2300,7 +2308,7 @@
 (fn Node.subgroup.eq? [value]
   (Node.aux.op :OpSubgroupAllEqualKHR bool (bool value)))
 
-(fn Node.subgroup.partition-nv [value]
+(fn Node.subgroup.partitionNV [value]
   (case value.type.kind
     (where (or :int :float :bool :vector)) nil
     _ (error (.. "Cannot partition non-vector non-scalar value, got: " value.type.summary)))
@@ -2319,7 +2327,7 @@
   (local cluster (if ?cluster (u32 ?cluster)))
 
   (when cluster
-    (assert (or (= cluster.kind :constant) (= cluster.kind :spec-constant))
+    (assert (or (= cluster.kind :constant) (= cluster.kind :specConstant))
       (.. "Rotation clustering argument must be constant, got: " cluster)))
 
   (Node.aux.op :OpGroupNonUniformRotateKHR value.type SubgroupScope value delta cluster))
@@ -2331,150 +2339,150 @@
 
 (set Node.atomic {})
 
-(fn Node.aux.validate-atomic-elem [type]
+(fn Node.aux.validateAtomicElem [type]
   (assert (or (= type.kind :int) (= type.kind :float))
     (.. "Atomically accessed value must be scalar integer or float, got: " type.summary)))
     
-(fn Node.aux.validate-atomic-elem-int [type]
+(fn Node.aux.validateAtomicElemInt [type]
   (assert (= type.kind :int))
     (.. "Atomically accessed value must be scalar integer, got: " type.summary))
 
-(fn Node.aux.atomic-scope-value [scope]
+(fn Node.aux.atomicScopeValue [scope]
   (local scope (if (enum? scope) scope.value (. Scope scope :value)))
   (u32 scope))
 
-(fn Node.aux.atomic-memory-semantics-value [memory-semantics]
-  (assert (= (enum? memory-semantics) :MemorySemantics)
-    (.. "Expected MemorySemantics value, got: " (tostring memory-semantics)))
-  (u32 memory-semantics.value))
+(fn Node.aux.atomicMemorySemanticsValue [memorySemantics]
+  (assert (= (enum? memorySemantics) :MemorySemantics)
+    (.. "Expected MemorySemantics value, got: " (tostring memorySemantics)))
+  (u32 memorySemantics.value))
 
-(fn Node.atomic.load [ptr scope memory-semantics]
+(fn Node.atomic.load [ptr scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
-  (Node.aux.validate-atomic-elem ptr.type.elem)
-  (local scope (Node.aux.atomic-scope-value scope))
-  (local memory-semantics (Node.aux.atomic-memory-semantics-value memory-semantics))
-  (Node.aux.op :OpAtomicLoad ptr.type.elem ptr scope memory-semantics))
+  (Node.aux.validateAtomicElem ptr.type.elem)
+  (local scope (Node.aux.atomicScopeValue scope))
+  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (Node.aux.op :OpAtomicLoad ptr.type.elem ptr scope memorySemantics))
   
-(fn Node.aux.atomic-store [ctx ptr value scope memory-semantics]
+(fn Node.aux.atomicStore [ctx ptr value scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
-  (Node.aux.validate-atomic-elem ptr.type.elem)
-  (local scope (Node.aux.atomic-scope-value scope))
-  (local memory-semantics (Node.aux.atomic-memory-semantics-value memory-semantics))
+  (Node.aux.validateAtomicElem ptr.type.elem)
+  (local scope (Node.aux.atomicScopeValue scope))
+  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
   (ctx:instruction
     (Op.OpAtomicStore
-      (ctx:node-id ptr)
-      (ctx:node-id scope)
-      (ctx:node-id memory-semantics)
-      (ctx:node-id (ptr.type.elem value)))))
+      (ctx:nodeID ptr)
+      (ctx:nodeID scope)
+      (ctx:nodeID memorySemantics)
+      (ctx:nodeID (ptr.type.elem value)))))
 
-(fn Node.atomic.swap [ptr value scope memory-semantics]
+(fn Node.atomic.swap [ptr value scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
-  (Node.aux.validate-atomic-elem ptr.type.elem)
-  (local scope (Node.aux.atomic-scope-value scope))
-  (local memory-semantics (Node.aux.atomic-memory-semantics-value memory-semantics))
-  (Node.aux.op :OpAtomicExchange ptr.type.elem ptr scope memory-semantics (ptr.type.elem value)))
+  (Node.aux.validateAtomicElem ptr.type.elem)
+  (local scope (Node.aux.atomicScopeValue scope))
+  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (Node.aux.op :OpAtomicExchange ptr.type.elem ptr scope memorySemantics (ptr.type.elem value)))
 
-(fn Node.atomic.compare-swap [ptr value compare-value scope eq-memory-semantics uneq-memory-semantics]
+(fn Node.atomic.compareSwap [ptr value compareValue scope eqMemorySemantics uneqMemorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
-  (Node.aux.validate-atomic-elem ptr.type.elem)
-  (local scope (Node.aux.atomic-scope-value scope))
-  (local eq-memory-semantics (Node.aux.atomic-memory-semantics-value eq-memory-semantics))
-  (local uneq-memory-semantics (Node.aux.atomic-memory-semantics-value uneq-memory-semantics))
-  (Node.aux.op :OpAtomicCompareExchange ptr.type.elem ptr scope eq-memory-semantics uneq-memory-semantics (ptr.type.elem value) (ptr.type.elem compare-value)))
+  (Node.aux.validateAtomicElem ptr.type.elem)
+  (local scope (Node.aux.atomicScopeValue scope))
+  (local eqMemorySemantics (Node.aux.atomicMemorySemanticsValue eqMemorySemantics))
+  (local uneqMemorySemantics (Node.aux.atomicMemorySemanticsValue uneqMemorySemantics))
+  (Node.aux.op :OpAtomicCompareExchange ptr.type.elem ptr scope eqMemorySemantics uneqMemorySemantics (ptr.type.elem value) (ptr.type.elem compareValue)))
 
-(fn Node.atomic.increment [ptr scope memory-semantics]
+(fn Node.atomic.increment [ptr scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
-  (Node.aux.validate-atomic-elem-int ptr.type.elem)
-  (local scope (Node.aux.atomic-scope-value scope))
-  (local memory-semantics (Node.aux.atomic-memory-semantics-value memory-semantics))
-  (Node.aux.op :OpAtomicIIncrement ptr.type.elem ptr scope memory-semantics))
+  (Node.aux.validateAtomicElemInt ptr.type.elem)
+  (local scope (Node.aux.atomicScopeValue scope))
+  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (Node.aux.op :OpAtomicIIncrement ptr.type.elem ptr scope memorySemantics))
   
-(fn Node.atomic.decrement [ptr scope memory-semantics]
+(fn Node.atomic.decrement [ptr scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
-  (Node.aux.validate-atomic-elem-int ptr.type.elem)
-  (local scope (Node.aux.atomic-scope-value scope))
-  (local memory-semantics (Node.aux.atomic-memory-semantics-value memory-semantics))
-  (Node.aux.op :OpAtomicIDecrement ptr.type.elem ptr scope memory-semantics))
+  (Node.aux.validateAtomicElemInt ptr.type.elem)
+  (local scope (Node.aux.atomicScopeValue scope))
+  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (Node.aux.op :OpAtomicIDecrement ptr.type.elem ptr scope memorySemantics))
 
-(fn node-atomic-binop [{ :name name :sint sint-op :uint uint-op :float float-op }]
-  (fn [ptr value scope memory-semantics]
+(fn nodeAtomicBinop [{ :name name :sint sintOp :uint uintOp :float floatOp }]
+  (fn [ptr value scope memorySemantics]
     (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
-    (Node.aux.validate-atomic-elem ptr.type.elem)
-    (local scope (Node.aux.atomic-scope-value scope))
-    (local memory-semantics (Node.aux.atomic-memory-semantics-value memory-semantics))
+    (Node.aux.validateAtomicElem ptr.type.elem)
+    (local scope (Node.aux.atomicScopeValue scope))
+    (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
     (local opcode
       (case ptr.type.elem
-        {:kind :int : signed} (if signed sint-op uint-op)
-        {:kind :float} float-op
+        {:kind :int : signed} (if signed sintOp uintOp)
+        {:kind :float} floatOp
         _ (error (.. "Cannot atomically " name " values of type: " ptr.type.elem.summary))))
-    (Node.aux.op opcode ptr.type.elem ptr scope memory-semantics (ptr.type.elem value))))
+    (Node.aux.op opcode ptr.type.elem ptr scope memorySemantics (ptr.type.elem value))))
 
 (set Node.atomic.add
-  (node-atomic-binop { :name "add" :sint :OpAtomicIAdd :uint :OpAtomicIAdd :float :OpAtomicFAddEXT }))
+  (nodeAtomicBinop { :name "add" :sint :OpAtomicIAdd :uint :OpAtomicIAdd :float :OpAtomicFAddEXT }))
 
-(set Node.aux.atomic-sub
-  (node-atomic-binop { :name "subtract" :sint :OpAtomicISub :uint :OpAtomicISub }))
+(set Node.aux.atomicSub
+  (nodeAtomicBinop { :name "subtract" :sint :OpAtomicISub :uint :OpAtomicISub }))
 
-(fn Node.atomic.sub [ptr value scope memory-semantics]
+(fn Node.atomic.sub [ptr value scope memorySemantics]
   (case (?. ptr :type :elem :kind)
-    :float (Node.atomic.add [ptr (- (ptr.type.elem value)) scope memory-semantics])
-    _ (Node.aux.atomic-sub ptr value scope memory-semantics)))
+    :float (Node.atomic.add [ptr (- (ptr.type.elem value)) scope memorySemantics])
+    _ (Node.aux.atomicSub ptr value scope memorySemantics)))
   
 (set Node.atomic.min
-  (node-atomic-binop { :name "take minimum" :sint :OpAtomicSMin :uint :OpAtomicUMin :float :OpAtomicFMinEXT }))
+  (nodeAtomicBinop { :name "take minimum" :sint :OpAtomicSMin :uint :OpAtomicUMin :float :OpAtomicFMinEXT }))
 
 (set Node.atomic.max
-  (node-atomic-binop { :name "take maximum" :sint :OpAtomicSMax :uint :OpAtomicUMax :float :OpAtomicFMaxEXT }))
+  (nodeAtomicBinop { :name "take maximum" :sint :OpAtomicSMax :uint :OpAtomicUMax :float :OpAtomicFMaxEXT }))
 
 (set Node.atomic.band
-  (node-atomic-binop { :name "binary and" :sint :OpAtomicAnd :uint :OpAtomicAnd }))
+  (nodeAtomicBinop { :name "binary and" :sint :OpAtomicAnd :uint :OpAtomicAnd }))
   
 (set Node.atomic.bor
-  (node-atomic-binop { :name "binary or" :sint :OpAtomicOr :uint :OpAtomicOr }))
+  (nodeAtomicBinop { :name "binary or" :sint :OpAtomicOr :uint :OpAtomicOr }))
   
 (set Node.atomic.bxor
-  (node-atomic-binop { :name "binary xor" :sint :OpAtomicXor :uint :OpAtomicXor }))
+  (nodeAtomicBinop { :name "binary xor" :sint :OpAtomicXor :uint :OpAtomicXor }))
 
 ;
 ; Primitive Emitters
 ;
 
-(fn Node.aux.emit-vertex [ctx]
+(fn Node.aux.emitVertex [ctx]
   (ctx:instruction Op.OpEmitVertex))
 
-(fn Node.aux.end-primitive [ctx]
+(fn Node.aux.endPrimitive [ctx]
   (ctx:instruction Op.OpEndPrimitive))
 
-(fn Node.aux.emit-stream-vertex [ctx id]
-  (local id (ctx:node-id (u32 id)))
+(fn Node.aux.emitStreamVertex [ctx id]
+  (local id (ctx:nodeID (u32 id)))
   (ctx:instruction (Op.OpEmitStreamVertex id)))
 
-(fn Node.aux.end-stream-primitive [ctx id]
-  (local id (ctx:node-id (u32 id)))
+(fn Node.aux.endStreamPrimitive [ctx id]
+  (local id (ctx:nodeID (u32 id)))
   (ctx:instruction (Op.OpEndStreamPrimitive id)))
 
 ;
 ; Mesh shader instructions
 ; 
 
-(fn Node.aux.set-mesh-outputs [ctx verts prims]
-  (local vid (ctx:node-id (u32 verts)))
-  (local pid (ctx:node-id (u32 prims)))
+(fn Node.aux.setMeshOutputs [ctx verts prims]
+  (local vid (ctx:nodeID (u32 verts)))
+  (local pid (ctx:nodeID (u32 prims)))
   (ctx:instruction (Op.OpSetMeshOutputsEXT vid pid)))
 
-(fn Node.aux.emit-mesh-tasks [ctx x y z payload]
-  (local xid (ctx:node-id (u32 x)))
-  (local yid (ctx:node-id (u32 y)))
-  (local zid (ctx:node-id (u32 z)))
+(fn Node.aux.emitMeshTasks [ctx x y z payload]
+  (local xid (ctx:nodeID (u32 x)))
+  (local yid (ctx:nodeID (u32 y)))
+  (local zid (ctx:nodeID (u32 z)))
 
   (local payload
     (if (= nil payload) nil
       (do 
-        (assert (node? payload) (.. "Payload for emit-mesh-tasks must be a node; cannot infer type of: " payload))
-        (assert (= payload.kind :variable) (.. "Payload for emit-mesh-tasks must be a variable; got: " payload))
+        (assert (node? payload) (.. "Payload for emitMeshTasks must be a node; cannot infer type of: " payload))
+        (assert (= payload.kind :variable) (.. "Payload for emitMeshTasks must be a variable; got: " payload))
         (assert (= payload.storage StorageClass.TaskPayloadWorkgroupEXT)
-                (.. "Payload for emit-mesh-tasks must have storage class TaskPayloadWorkgroupEXT, got: " payload.storage))
-        (ctx:node-id payload)
+                (.. "Payload for emitMeshTasks must have storage class TaskPayloadWorkgroupEXT, got: " payload.storage))
+        (ctx:nodeID payload)
       )))
 
   (ctx:instruction (Op.OpEmitMeshTasksEXT xid yid zid payload)))
@@ -2483,51 +2491,53 @@
 ; Ray tracing instructions
 ; 
 
-(fn Node.aux.initialize-ray-query [ctx rqy acc flags cullmask origin tmin direction tmax]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
-          (.. "Argument 1 to initialize-ray-query must be a pointer to a ray query, got: " rqy))
+(fn Node.aux.initializeRayQuery [ctx rqy acc flags cullmask origin tmin direction tmax]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
+          (.. "Argument 1 to initializeRayQuery must be a pointer to a ray query, got: " rqy))
 
   (local acc (Node.autoderef acc))
-  (assert (and (node? acc) (= acc.type.kind :acceleration-structure))
-          (.. "Argument 2 to initialize-ray-query must be an acceleration structure, got: " acc))
+  (assert (and (node? acc) (= acc.type.kind :accelerationStructure))
+          (.. "Argument 2 to initializeRayQuery must be an acceleration structure, got: " acc))
 
-  (local rqyid (ctx:node-id rqy))
-  (local accid (ctx:node-id acc))
-  (local flagsid (ctx:node-id (u32 flags)))
-  (local maskid  (ctx:node-id (u32 cullmask)))
-  (local originid (ctx:node-id ((vec3 f32) origin)))
-  (local directionid (ctx:node-id ((vec3 f32) direction)))
-  (local tminid (ctx:node-id (f32 tmin)))
-  (local tmaxid (ctx:node-id (f32 tmax)))
+  (local vec3f32 (Type.vector (Type.float 32) 3))
+
+  (local rqyid (ctx:nodeID rqy))
+  (local accid (ctx:nodeID acc))
+  (local flagsid (ctx:nodeID (u32 flags)))
+  (local maskid  (ctx:nodeID (u32 cullmask)))
+  (local originid (ctx:nodeID (vec3f32 origin)))
+  (local directionid (ctx:nodeID (vec3f32 direction)))
+  (local tminid (ctx:nodeID (f32 tmin)))
+  (local tmaxid (ctx:nodeID (f32 tmax)))
 
   (ctx:instruction (Op.OpRayQueryInitializeKHR rqyid accid flagsid maskid originid tminid directionid tmaxid)))
 
 
-(fn Node.aux.terminate-ray-query [ctx rqy]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
-          (.. "Argument to terminate-ray-query must be a pointer to a ray query, got: " rqy))
-  (local rqyid (ctx:node-id rqy))
+(fn Node.aux.terminateRayQuery [ctx rqy]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
+          (.. "Argument to terminateRayQuery must be a pointer to a ray query, got: " rqy))
+  (local rqyid (ctx:nodeID rqy))
   (ctx:instruction (Op.OpRayQueryTerminateKHR rqyid)))
 
 
-(fn Node.aux.confirm-ray-query-intersection [ctx rqy]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
-          (.. "Argument to confirm-ray-query-intersection must be a pointer to a ray query, got: " rqy))
-  (local rqyid (ctx:node-id rqy))
+(fn Node.aux.confirmRayQueryIntersection [ctx rqy]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
+          (.. "Argument to confirmRayQueryIntersection must be a pointer to a ray query, got: " rqy))
+  (local rqyid (ctx:nodeID rqy))
   (ctx:instruction (Op.OpRayQueryConfirmIntersectionKHR rqyid)))
 
 
-(fn Node.aux.generate-ray-query-intersection [ctx rqy hitt]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
-          (.. "Argument 1 to generate-ray-query-intersection must be a pointer to a ray query, got: " rqy))
-  (local rqyid (ctx:node-id rqy))
-  (local hittid (ctx:node-id (f32 hitt)))
+(fn Node.aux.generateRayQueryIntersection [ctx rqy hitt]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
+          (.. "Argument 1 to generateRayQueryIntersection must be a pointer to a ray query, got: " rqy))
+  (local rqyid (ctx:nodeID rqy))
+  (local hittid (ctx:nodeID (f32 hitt)))
   (ctx:instruction (Op.OpRayQueryGenerateIntersectionKHR rqyid hittid)))
 
 
-(fn Node.aux.proceed-ray-query [rqy]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :ray-query))
-          (.. "Argument to proceed-ray-query must be a pointer to a ray query, got: " rqy))
+(fn Node.aux.proceedRayQuery [rqy]
+  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
+          (.. "Argument to proceedRayQuery must be a pointer to a ray query, got: " rqy))
   (Node.aux.op :OpRayQueryProceedKHR (Type.bool) rqy))
 
 
@@ -2538,34 +2548,34 @@
 ; Barriers
 ; 
 
-(fn Node.aux.control-barrier [ctx execution-scope memory-scope memory-semantics]
-  (local execution-scope 
-    (if (enum? execution-scope) execution-scope.value
-        (= (type execution-scope) :string) (. Scope execution-scope :value)
-        execution-scope))
-  (local memory-scope 
-    (if (enum? memory-scope) memory-scope.value
-        (= (type memory-scope) :string) (. Scope memory-scope :value)
-        memory-scope))
-  (local memory-semantics
-    (if (= (enum? memory-semantics) :MemorySemantics) memory-semantics.value-union
+(fn Node.aux.controlBarrier [ctx executionScope memoryScope memorySemantics]
+  (local executionScope 
+    (if (enum? executionScope) executionScope.value
+        (= (type executionScope) :string) (. Scope executionScope :value)
+        executionScope))
+  (local memoryScope 
+    (if (enum? memoryScope) memoryScope.value
+        (= (type memoryScope) :string) (. Scope memoryScope :value)
+        memoryScope))
+  (local memorySemantics
+    (if (= (enum? memorySemantics) :MemorySemantics) memorySemantics.valueUnion
         (error "Must provide MemorySemantics flags value explicitly for barrier")))
   (ctx:instruction 
-    (Op.OpControlBarrier (ctx:node-id (u32 execution-scope)) 
-                         (ctx:node-id (u32 memory-scope))
-                         (ctx:node-id (u32 memory-semantics)))))
+    (Op.OpControlBarrier (ctx:nodeID (u32 executionScope)) 
+                         (ctx:nodeID (u32 memoryScope))
+                         (ctx:nodeID (u32 memorySemantics)))))
 
-(fn Node.aux.memory-barrier [ctx memory-scope memory-semantics]
-  (local memory-scope 
-    (if (enum? memory-scope) memory-scope.value
-        (= (type memory-scope) :string (. Scope memory-scope :value)
-        memory-scope)))
-  (local memory-semantics
-    (if (= (enum? memory-semantics) :MemorySemantics) memory-semantics.value-union
+(fn Node.aux.memoryBarrier [ctx memoryScope memorySemantics]
+  (local memoryScope 
+    (if (enum? memoryScope) memoryScope.value
+        (= (type memoryScope) :string (. Scope memoryScope :value)
+        memoryScope)))
+  (local memorySemantics
+    (if (= (enum? memorySemantics) :MemorySemantics) memorySemantics.valueUnion
         (error "Must provide MemorySemantics flags value explicitly for barrier")))
   (ctx:instruction 
-    (Op.OpMemoryBarrier (ctx:node-id (u32 memory-scope)) 
-                        (ctx:node-id (u32 memory-semantics)))))
+    (Op.OpMemoryBarrier (ctx:nodeID (u32 memoryScope)) 
+                        (ctx:nodeID (u32 memorySemantics)))))
 
 
 ;
@@ -2573,28 +2583,28 @@
 ;
 
 (set Node.pow
-  (node-glsl-binop { :name "exponentiate" :float :Pow :no-f64? true }))
+  (nodeGLSLBinop { :name "exponentiate" :float :Pow :nof64? true }))
 
 (set Node.arctan2
-  (node-glsl-binop { :name "compute arctangent" :float :Atan2 :no-f64? true }))
+  (nodeGLSLBinop { :name "compute arctangent" :float :Atan2 :nof64? true }))
 
 (set Node.aux.max
-  (node-glsl-binop { :name "take maximum" :sint :SMax :uint :UMax :float :FMax }))
+  (nodeGLSLBinop { :name "take maximum" :sint :SMax :uint :UMax :float :FMax }))
 
 (set Node.aux.min
-  (node-glsl-binop { :name "take minimum" :sint :SMin :uint :UMin :float :FMin }))
+  (nodeGLSLBinop { :name "take minimum" :sint :SMin :uint :UMin :float :FMin }))
 
 (set Node.aux.nmax
-  (node-glsl-binop { :name "take maximum (ignoring NaN)" :float :NMax }))
+  (nodeGLSLBinop { :name "take maximum (ignoring NaN)" :float :NMax }))
 
 (set Node.aux.nmin
-  (node-glsl-binop { :name "take minimum (ignoring NaN)" :float :NMin }))
+  (nodeGLSLBinop { :name "take minimum (ignoring NaN)" :float :NMin }))
 
 (set Node.step
-  (node-glsl-binop { :name "step function" :float :Step }))
+  (nodeGLSLBinop { :name "step function" :float :Step }))
 
 (set Node.reflect
-  (node-glsl-binop { :name "reflect across" :float :Reflect }))
+  (nodeGLSLBinop { :name "reflect across" :float :Reflect }))
 
 (fn Node.max [a ...]
   (case ...
@@ -2618,122 +2628,122 @@
 
 
 (set Node.round
-  (node-glsl-unop { :name "round" :float :Round }))
+  (nodeGLSLUnop { :name "round" :float :Round }))
 
-(set Node.round-even
-  (node-glsl-unop { :name "round to nearest even" :float :RoundEven }))
+(set Node.roundEven
+  (nodeGLSLUnop { :name "round to nearest even" :float :RoundEven }))
 
 (set Node.trunc
-  (node-glsl-unop { :name "truncate" :float :Trunc }))
+  (nodeGLSLUnop { :name "truncate" :float :Trunc }))
 
 (set Node.floor
-  (node-glsl-unop { :name "take floor of" :float :Floor }))
+  (nodeGLSLUnop { :name "take floor of" :float :Floor }))
 
 (set Node.ceil
-  (node-glsl-unop { :name "take ceiling of" :float :Ceil }))
+  (nodeGLSLUnop { :name "take ceiling of" :float :Ceil }))
 
 (set Node.fract
-  (node-glsl-unop { :name "take fractional part of" :float :Fract }))
+  (nodeGLSLUnop { :name "take fractional part of" :float :Fract }))
 
-(set Node.degrees-to-radians
-  (node-glsl-unop { :name "convert degrees to radians" :float :Radians :no-f64? true }))
+(set Node.degreesToRadians
+  (nodeGLSLUnop { :name "convert degrees to radians" :float :Radians :nof64? true }))
 
-(set Node.radians-to-degrees
-  (node-glsl-unop { :name "convert radians to degrees" :float :Degrees :no-f64? true }))
+(set Node.radiansToDegrees
+  (nodeGLSLUnop { :name "convert radians to degrees" :float :Degrees :nof64? true }))
 
 (set Node.sign
-  (node-glsl-unop { :name "find sign of" :sint :SSign :float :FSign }))
+  (nodeGLSLUnop { :name "find sign of" :sint :SSign :float :FSign }))
   
 (set Node.abs
-  (node-glsl-unop { :name "find absolute value of" :sint :SAbs :float :FAbs }))
+  (nodeGLSLUnop { :name "find absolute value of" :sint :SAbs :float :FAbs }))
 
 (set Node.sin
-  (node-glsl-unop { :name "compute sine" :float :Sin :no-f64? true }))
+  (nodeGLSLUnop { :name "compute sine" :float :Sin :nof64? true }))
   
 (set Node.cos
-  (node-glsl-unop { :name "compute cosine" :float :Cos :no-f64? true }))
+  (nodeGLSLUnop { :name "compute cosine" :float :Cos :nof64? true }))
   
 (set Node.tan
-  (node-glsl-unop { :name "compute tangent" :float :Tan :no-f64? true }))
+  (nodeGLSLUnop { :name "compute tangent" :float :Tan :nof64? true }))
   
 (set Node.arcsin
-  (node-glsl-unop { :name "compute arcsine" :float :Asin :no-f64? true }))
+  (nodeGLSLUnop { :name "compute arcsine" :float :Asin :nof64? true }))
   
 (set Node.arccos
-  (node-glsl-unop { :name "compute arccosine" :float :Acos :no-f64? true }))
+  (nodeGLSLUnop { :name "compute arccosine" :float :Acos :nof64? true }))
   
 (set Node.arctan
-  (node-glsl-unop { :name "compute arctangent" :float :Atan :no-f64? true }))
+  (nodeGLSLUnop { :name "compute arctangent" :float :Atan :nof64? true }))
   
 (set Node.sinh
-  (node-glsl-unop { :name "compute hyperbolic sine" :float :Sinh :no-f64? true }))
+  (nodeGLSLUnop { :name "compute hyperbolic sine" :float :Sinh :nof64? true }))
   
 (set Node.cosh
-  (node-glsl-unop { :name "compute hyperbolic cosine" :float :Cosh :no-f64? true }))
+  (nodeGLSLUnop { :name "compute hyperbolic cosine" :float :Cosh :nof64? true }))
   
 (set Node.tanh
-  (node-glsl-unop { :name "compute hyperbolic tangent" :float :Tanh :no-f64? true }))
+  (nodeGLSLUnop { :name "compute hyperbolic tangent" :float :Tanh :nof64? true }))
   
 (set Node.arcsinh
-  (node-glsl-unop { :name "compute hyperbolic arcsine" :float :Asinh :no-f64? true }))
+  (nodeGLSLUnop { :name "compute hyperbolic arcsine" :float :Asinh :nof64? true }))
   
 (set Node.arccosh
-  (node-glsl-unop { :name "compute hyperbolic arccosine" :float :Acosh :no-f64? true }))
+  (nodeGLSLUnop { :name "compute hyperbolic arccosine" :float :Acosh :nof64? true }))
   
 (set Node.arctanh
-  (node-glsl-unop { :name "compute hyperbolic arctangent" :float :Atanh :no-f64? true }))
+  (nodeGLSLUnop { :name "compute hyperbolic arctangent" :float :Atanh :nof64? true }))
   
 (set Node.exp
-  (node-glsl-unop { :name "exponentiate" :float :Exp :no-f64? true }))
+  (nodeGLSLUnop { :name "exponentiate" :float :Exp :nof64? true }))
 
 (set Node.exp2
-  (node-glsl-unop { :name "exponentiate" :float :Exp2 :no-f64? true }))
+  (nodeGLSLUnop { :name "exponentiate" :float :Exp2 :nof64? true }))
 
 (set Node.log
-  (node-glsl-unop { :name "find natural logarithm" :float :Log :no-f64? true }))
+  (nodeGLSLUnop { :name "find natural logarithm" :float :Log :nof64? true }))
 
 (set Node.log2
-  (node-glsl-unop { :name "find base-2 logarithm" :float :Log2 :no-f64? true }))
+  (nodeGLSLUnop { :name "find base-2 logarithm" :float :Log2 :nof64? true }))
 
 (set Node.sqrt
-  (node-glsl-unop { :name "find square root" :float :Sqrt }))
+  (nodeGLSLUnop { :name "find square root" :float :Sqrt }))
 
-(set Node.inverse-sqrt
-  (node-glsl-unop { :name "find inverse square root" :float :InverseSqrt }))
+(set Node.inverseSqrt
+  (nodeGLSLUnop { :name "find inverse square root" :float :InverseSqrt }))
 
 (set Node.normalize
-  (node-glsl-unop { :name "normalize" :float :Normalize }))
+  (nodeGLSLUnop { :name "normalize" :float :Normalize }))
 
 (set Node.lsb
-  (node-glsl-unop { :name "find least-significant bit" :sint :FindILsb :uint :FindILsb :no-i64? true }))
+  (nodeGLSLUnop { :name "find leastSignificant bit" :sint :FindILsb :uint :FindILsb :noi64? true }))
 
 (set Node.msb
-  (node-glsl-unop { :name "find most-significant bit" :sint :FindSMsb :uint :FindUMsb :no-i64? true }))
+  (nodeGLSLUnop { :name "find mostSignificant bit" :sint :FindSMsb :uint :FindUMsb :noi64? true }))
 
 (fn Node.norm [v]
   (local f32 (Type.float 32))
   (local v (Node.aux.autoderef v))
   (local v (if (node? v) v (f32 v)))
-  (var (out-prim out-count) (v.type:prim-count))
-  (when (= out-prim.kind :int)
-    (set out-prim (Type.float 32)))
-  (local out-type (Type.vector out-prim out-count))
-  (Node.glsl.op :Length out-prim (out-type v)))
+  (var (outPrim outCount) (v.type:primCount))
+  (when (= outPrim.kind :int)
+    (set outPrim (Type.float 32)))
+  (local outType (Type.vector outPrim outCount))
+  (Node.glsl.op :Length outPrim (outType v)))
 
 (fn Node.distance [lhs rhs]
   (local lhs (Node.aux.autoderef lhs))
   (local rhs (Node.aux.autoderef rhs))
-  (local out-type
-    (if (and (node? lhs) (node? rhs)) (Type.prim-common-supertype lhs.type rhs.type)
+  (local outType
+    (if (and (node? lhs) (node? rhs)) (Type.primCommonSupertype lhs.type rhs.type)
         (node? lhs) lhs.type
         (node? rhs) rhs.type))
-  (var (out-prim out-count) (out-type:prim-count))
-  (when (= out-prim.kind :int)
-    (set out-prim (Type.float 32)))
-  (local out-type (Type.vector out-prim out-count))
-  (Node.glsl.op :Distance out-prim
-    (out-type lhs)
-    (out-type rhs)))
+  (var (outPrim outCount) (outType:primCount))
+  (when (= outPrim.kind :int)
+    (set outPrim (Type.float 32)))
+  (local outType (Type.vector outPrim outCount))
+  (Node.glsl.op :Distance outPrim
+    (outType lhs)
+    (outType rhs)))
 
 (fn Node.length [v]
   (if (not (node? v)) (# v)
@@ -2743,14 +2753,14 @@
         (case v.type.elem.kind
           :array
             (or v.type.count
-              (do (local base (Node.aux.base-ptr v))
-                  (local base-type base.type.elem)
-                  (assert (= base-type.kind :struct)
+              (do (local base (Node.aux.basePtr v))
+                  (local baseType base.type.elem)
+                  (assert (= baseType.kind :struct)
                     "Cannot take length of unsized array not originating from a buffer!")
-                  (local fields (# base-type.field-types))
-                  (local final-member-type (. base-type.field-types fields))
-                  (assert (= final-member-type v.type.elem)
-                    (.. "Cannot take length of unsized array not immediately nested within buffer: " base-type))
+                  (local fields (# baseType.fieldTypes))
+                  (local finalMemberType (. baseType.fieldTypes fields))
+                  (assert (= finalMemberType v.type.elem)
+                    (.. "Cannot take length of unsized array not immediately nested within buffer: " baseType))
                   (Node.aux.op :OpArrayLength (Type.int 32) base (- fields 1))))
           _ (Node.norm v)
         )
@@ -2766,21 +2776,21 @@
   (local else (Node.aux.autoderef else))
 
   (local f32 (Type.float 32))
-  (local then-type (if (node? then) then.type f32))
-  (local else-type (if (node? else) else.type f32))
+  (local thenType (if (node? then) then.type f32))
+  (local elseType (if (node? else) else.type f32))
 
   ; FIXME: OpSelect can also work on pointers or composites
-  (local out-type
-    (Type.prim-common-supertype then-type else-type))
+  (local outType
+    (Type.primCommonSupertype thenType elseType))
 
-  (local (out-prim out-count) (out-type:prim-count))
-  (local cond-type (Type.vector bool out-count))
+  (local (outPrim outCount) (outType:primCount))
+  (local condType (Type.vector bool outCount))
 
   (Node.aux.op
-    :OpSelect out-type (cond-type cond) (out-type then) (out-type else)))
+    :OpSelect outType (condType cond) (outType then) (outType else)))
 
 
-(fn Node.face-forward [v0 v1 v2]
+(fn Node.faceForward [v0 v1 v2]
   (local v0 (Node.aux.autoderef v0))
   (local v1 (Node.aux.autoderef v1))
   (local v2 (Node.aux.autoderef v2))
@@ -2790,10 +2800,10 @@
   (local v1t (if (node? v1) v1.type f32))
   (local v2t (if (node? v2) v2.type f32))
 
-  (local out-type
-    (Type.prim-common-supertype v0t v1t v2t))
+  (local outType
+    (Type.primCommonSupertype v0t v1t v2t))
 
-  (Node.glsl.op :FaceForward out-type (out-type v0) (out-type v1) (out-type v2)))
+  (Node.glsl.op :FaceForward outType (outType v0) (outType v1) (outType v2)))
 
 
 (fn Node.refract [v0 v1 eta]
@@ -2806,11 +2816,11 @@
   (local v1t  (if (node? v1)  v1.type f32))
   (local etat (if (node? eta) eta.type f32))
 
-  (local out-type
-    (Type.prim-common-supertype v0t v1t etat))
-  (local out-prim (out-type:prim-count))
+  (local outType
+    (Type.primCommonSupertype v0t v1t etat))
+  (local outPrim (outType:primCount))
 
-  (Node.glsl.op :Refract out-type (out-type v0) (out-type v1) (out-prim eta)))
+  (Node.glsl.op :Refract outType (outType v0) (outType v1) (outPrim eta)))
 
 
 (fn Node.smoothstep [v0 v1 vt]
@@ -2829,14 +2839,14 @@
       (local v1t (if (node? v1) v1.type f32))
       (local vtt (if (node? vt) vt.type f32))
 
-      (local out-type
-        (Type.prim-common-supertype v0t v1t vtt))
+      (local outType
+        (Type.primCommonSupertype v0t v1t vtt))
       
-      (local (out-prim out-count) (out-type:prim-count))
-      (assert (= :float out-prim.kind) "Cannot smoothstep non-floating values.")
+      (local (outPrim outCount) (outType:primCount))
+      (assert (= :float outPrim.kind) "Cannot smoothstep non-floating values.")
 
       (Node.glsl.op
-        :SmoothStep out-type (out-type v0) (out-type v1) (out-type vt)))))
+        :SmoothStep outType (outType v0) (outType v1) (outType vt)))))
 
 
 (fn Node.mix [v0 v1 vt]
@@ -2852,14 +2862,14 @@
       (local v1 (if (node? v1) v1 (f32 v1)))
       (local vt (if (node? vt) vt (f32 vt)))
 
-      (local out-type
-        (Type.prim-common-supertype v0.type v1.type vt.type))
+      (local outType
+        (Type.primCommonSupertype v0.type v1.type vt.type))
       
-      (local (out-prim out-count) (out-type:prim-count))
-      (assert (= :float out-prim.kind) "Cannot mix non-floating values.")
+      (local (outPrim outCount) (outType:primCount))
+      (assert (= :float outPrim.kind) "Cannot mix non-floating values.")
 
       (Node.glsl.op
-        :FMix out-type (out-type v0) (out-type v1) (out-type vt)))))
+        :FMix outType (outType v0) (outType v1) (outType vt)))))
 
 
 (fn Node.fma [v0 v1 v2]
@@ -2873,13 +2883,13 @@
       (local v1 (if (node? v1) v1 (f32 v1)))
       (local v2 (if (node? v2) v2 (f32 v2)))
 
-      (local out-type
-        (Type.prim-common-supertype v0.type v1.type v2.type f32))
+      (local outType
+        (Type.primCommonSupertype v0.type v1.type v2.type f32))
       
-      (local (out-prim out-count) (out-type:prim-count))
+      (local (outPrim outCount) (outType:primCount))
 
       (Node.glsl.op
-        :Fma out-type (out-type v0) (out-type v1) (out-type v2))))
+        :Fma outType (outType v0) (outType v1) (outType v2))))
 
 
 (fn Node.cross [v0 v1]
@@ -2892,65 +2902,65 @@
   (local v0t (if (node? v0) v0.type f32))
   (local v1t (if (node? v1) v1.type f32))
 
-  (local out-type
-    (Type.prim-common-supertype v0t v1t))
+  (local outType
+    (Type.primCommonSupertype v0t v1t))
 
-  (local out-prim (out-type:prim-count))
+  (local outPrim (outType:primCount))
 
-  (local out-type 
-    (case out-prim.kind
+  (local outType 
+    (case outPrim.kind
       :int vec3f32
-      :float out-type))
+      :float outType))
 
-  (Node.glsl.op :Cross out-type (out-type v0) (out-type v1)))
+  (Node.glsl.op :Cross outType (outType v0) (outType v1)))
 
 
 (fn Node.determinant [mat]
   (local mat (Node.aux.autoderef mat))
   (assert (and (node? mat) (= mat.type.kind :matrix)) "Cannot find determinant of non-matrix value.")
   
-  (local mat-type mat.type)
-  (assert (= mat-type.rows mat-type.cols) (.. "Argument to determinant must be a square matrix, got: " mat.type.summary))
+  (local matType mat.type)
+  (assert (= matType.rows matType.cols) (.. "Argument to determinant must be a square matrix, got: " mat.type.summary))
   
   (Node.glsl.op
-    :Determinant mat-type.elem mat))
+    :Determinant matType.elem mat))
 
 
-(fn Node.matrix-inverse [mat]
+(fn Node.matrixInverse [mat]
   (local mat (Node.aux.autoderef mat))
   (assert (and (node? mat) (= mat.type.kind :matrix)) "Cannot invert non-matrix value.")
   
-  (local mat-type mat.type)
-  (assert (= mat-type.rows mat-type.cols) (.. "Matrix to invert must be a square matrix, got: " mat.type.summary))
+  (local matType mat.type)
+  (assert (= matType.rows matType.cols) (.. "Matrix to invert must be a square matrix, got: " mat.type.summary))
   
   (Node.glsl.op
-    :MatrixInverse mat-type mat))
+    :MatrixInverse matType mat))
 
 
-(fn Node.matrix-transpose [mat]
+(fn Node.matrixTranspose [mat]
   (local mat (Node.aux.autoderef mat))
   (assert (and (node? mat) (= mat.type.kind :matrix)) "Cannot invert non-matrix value.")
   
-  (local mat-type mat.type)
-  (local out-type (Type.matrix mat-type.elem mat-type.cols mat-type.rows))
+  (local matType mat.type)
+  (local outType (Type.matrix matType.elem matType.cols matType.rows))
 
   (Node.aux.op
-    :OpTranspose out-type mat))
+    :OpTranspose outType mat))
 
 
 (fn Node.modf [value]
   (local value (Node.aux.autoderef value))
   (if (= :number (type value)) (math.modf value)
     (do 
-      (local (prim count) (value.type:prim-count))
+      (local (prim count) (value.type:primCount))
       (assert (= prim.kind :float) (.. "Argument to modf must be floating, got: " value.type.summary))
 
-      (local out-type (Type.struct [value.type value.type] [:0 :1]))
+      (local outType (Type.struct [value.type value.type] [:0 :1]))
 
-      (local modf-result
-        (Node.glsl.op :ModfStruct out-type value))
+      (local modfResult
+        (Node.glsl.op :ModfStruct outType value))
       (values
-        modf-result.1 modf-result.0)
+        modfResult.1 modfResult.0)
     )))
 
 
@@ -2960,14 +2970,14 @@
   (assert (node? value) "Argument to frexp must be node, got comptime value")
   (local value (Node.aux.autoderef value))
 
-  (local (prim count) (value.type:prim-count))
+  (local (prim count) (value.type:primCount))
   (assert (= prim.kind :float) (.. "Argument to frexp must be floating, got: " value.type.summary))
 
-  (local exp-type (Type.vector i32 count))
-  (local out-type (Type.struct [value.type exp-type] [:0 :1]))
+  (local expType (Type.vector i32 count))
+  (local outType (Type.struct [value.type expType] [:0 :1]))
 
-  (local frexp-result (Node.glsl.op :FrexpStruct out-type value))
-  (values frexp-result.1 frexp-result.0))
+  (local frexpResult (Node.glsl.op :FrexpStruct outType value))
+  (values frexpResult.1 frexpResult.0))
 
 
 (fn Node.ldexp [v exp]
@@ -2976,66 +2986,66 @@
   (local v (Node.aux.autoderef v))
   (local exp (Node.aux.autoderef exp))
 
-  (local (v-prim v-count) (v.type:prim-count))
-  (local (exp-prim exp-count) (exp.type:prim-count))
+  (local (vPrim vCount) (v.type:primCount))
+  (local (expPrim expCount) (exp.type:primCount))
 
-  (assert (= v-prim.kind :float) (.. "First argument to ldexp must be floating, got: " v.type.summary))
-  (assert (= exp-prim.kind :int) (.. "Second argument to ldexp must be integral, got: " exp.type.summary))
+  (assert (= vPrim.kind :float) (.. "First argument to ldexp must be floating, got: " v.type.summary))
+  (assert (= expPrim.kind :int) (.. "Second argument to ldexp must be integral, got: " exp.type.summary))
 
   ; done just to make sure the vector lengths are compatible
-  (local supertype (Type.prim-common-supertype v.type exp.type))
-  (local (_ super-count) (supertype:prim-count))
-  (local v-type (Type.vector v-prim super-count))
-  (local exp-type (Type.vector exp-prim super-count))
+  (local supertype (Type.primCommonSupertype v.type exp.type))
+  (local (_ superCount) (supertype:primCount))
+  (local vType (Type.vector vPrim superCount))
+  (local expType (Type.vector expPrim superCount))
   
-  (Node.glsl.op :Ldexp v-type (v-type v) (exp-type exp)))
+  (Node.glsl.op :Ldexp vType (vType v) (expType exp)))
 
 ;
 ; pack/unpack operations
 ;
 
-(set Node.pack-snorm4x8
-  (node-glsl-pack-op { :op :PackSnorm4x8 :in-type (Type.vector f32 4) :out-type u32 }))
+(set Node.packSnorm4x8
+  (nodeGLSLPackOp { :op :PackSnorm4x8 :inType (Type.vector f32 4) :outType u32 }))
 
-(set Node.pack-unorm4x8
-  (node-glsl-pack-op { :op :PackUnorm4x8 :in-type (Type.vector f32 4) :out-type u32 }))
+(set Node.packUnorm4x8
+  (nodeGLSLPackOp { :op :PackUnorm4x8 :inType (Type.vector f32 4) :outType u32 }))
 
-(set Node.pack-snorm2x16
-  (node-glsl-pack-op { :op :PackSnorm2x16 :in-type (Type.vector f32 2) :out-type u32 }))
+(set Node.packSnorm2x16
+  (nodeGLSLPackOp { :op :PackSnorm2x16 :inType (Type.vector f32 2) :outType u32 }))
 
-(set Node.pack-unorm2x16
-  (node-glsl-pack-op { :op :PackUnorm2x16 :in-type (Type.vector f32 2) :out-type u32 }))
+(set Node.packUnorm2x16
+  (nodeGLSLPackOp { :op :PackUnorm2x16 :inType (Type.vector f32 2) :outType u32 }))
 
-(set Node.pack-half2x16
-  (node-glsl-pack-op { :op :PackHalf2x16 :in-type (Type.vector f32 2) :out-type u32 }))
+(set Node.packHalf2x16
+  (nodeGLSLPackOp { :op :PackHalf2x16 :inType (Type.vector f32 2) :outType u32 }))
 
-(set Node.pack-double2x32
-  (node-glsl-pack-op { :op :PackDouble2x32 :in-type (Type.vector u32 2) :out-type f64 }))
+(set Node.packDouble2x32
+  (nodeGLSLPackOp { :op :PackDouble2x32 :inType (Type.vector u32 2) :outType f64 }))
 
-(set Node.unpack-snorm2x16
-  (node-glsl-pack-op { :op :UnpackSnorm2x16 :in-type u32 :out-type (Type.vector f32 2) }))
+(set Node.unpackSnorm2x16
+  (nodeGLSLPackOp { :op :UnpackSnorm2x16 :inType u32 :outType (Type.vector f32 2) }))
 
-(set Node.unpack-unorm2x16
-  (node-glsl-pack-op { :op :UnpackUnorm2x16 :in-type u32 :out-type (Type.vector f32 2) }))
+(set Node.unpackUnorm2x16
+  (nodeGLSLPackOp { :op :UnpackUnorm2x16 :inType u32 :outType (Type.vector f32 2) }))
 
-(set Node.unpack-half2x16
-  (node-glsl-pack-op { :op :UnpackHalf2x16 :in-type u32 :out-type (Type.vector f32 2) }))
+(set Node.unpackHalf2x16
+  (nodeGLSLPackOp { :op :UnpackHalf2x16 :inType u32 :outType (Type.vector f32 2) }))
 
-(set Node.unpack-snorm4x8
-  (node-glsl-pack-op { :op :UnpackSnorm4x8 :in-type u32 :out-type (Type.vector f32 4) }))
+(set Node.unpackSnorm4x8
+  (nodeGLSLPackOp { :op :UnpackSnorm4x8 :inType u32 :outType (Type.vector f32 4) }))
   
-(set Node.unpack-unorm4x8
-  (node-glsl-pack-op { :op :UnpackUnorm4x8 :in-type u32 :out-type (Type.vector f32 4) }))
+(set Node.unpackUnorm4x8
+  (nodeGLSLPackOp { :op :UnpackUnorm4x8 :inType u32 :outType (Type.vector f32 4) }))
   
-(set Node.unpack-double2x32
-  (node-glsl-pack-op { :op :UnpackDouble2x32 :in-type f64 :out-type (Type.vector u32 2) }))
+(set Node.unpackDouble2x32
+  (nodeGLSLPackOp { :op :UnpackDouble2x32 :inType f64 :outType (Type.vector u32 2) }))
 
 ;
 ; internal node types required to support syntax and basic features
 ;
 
-(fn node-reify-returnvalue [self ctx]
-  (local id (ctx:node-id (. self.operands 1)))
+(fn nodeReifyReturnvalue [self ctx]
+  (local id (ctx:nodeID (. self.operands 1)))
   (local op (Op.OpReturnValue id))
   (ctx:instruction op)
   id)
@@ -3046,99 +3056,99 @@
       :type (Type.void)
       :operation :OpReturnValue
       :operands [node]
-      :reify node-reify-returnvalue
+      :reify nodeReifyReturnvalue
     }))
 
 
-(fn node-reify-accesschain [self ctx]
+(fn nodeReifyAccessChain [self ctx]
   (local [base indices] self.operands)
-  (local tid (ctx:type-id self.type))
-  (local base-id (ctx:node-id base))
-  (local index-ids (icollect [_ index (ipairs indices)] (ctx:node-id index)))
-  (local id (ctx:fresh-id))
-  (ctx:instruction ((. Op self.operation) tid id base-id index-ids))
+  (local tid (ctx:typeID self.type))
+  (local baseID (ctx:nodeID base))
+  (local indexIDs (icollect [_ index (ipairs indices)] (ctx:nodeID index)))
+  (local id (ctx:freshID))
+  (ctx:instruction ((. Op self.operation) tid id baseID indexIDs))
   (when (and (= base.kind :variable) (not= base.storage StorageClass.Function))
-    (ctx:interface-id base-id))
+    (ctx:interfaceID baseID))
   id)
 
 ; TODO: Consider using OpInBoundsAccessChain when it is possible to do so
 (fn Node.access [base index]
   ; (print :Node.access base index)
   (local index (Node.aux.autoderef index))
-  (var result-type (Type.access base.type index))
+  (var resultType (Type.access base.type index))
   (if (and (= base.kind :expr) (= base.operation :OpAccessChain))
       (do (local [base indices] base.operands)
           (local indices (icollect [_ v (ipairs indices)] v))
           (table.insert indices index)
-          (Node.access-chain base result-type indices))
-    (Node.access-chain base result-type [index])))
+          (Node.accessChain base resultType indices))
+    (Node.accessChain base resultType [index])))
 
-(fn Node.access-chain [base type indices]
+(fn Node.accessChain [base type indices]
   (Node.new
     { :kind :expr
       :type type
       :operation :OpAccessChain
       :operands [base indices]
-      :reify node-reify-accesschain
+      :reify nodeReifyAccessChain
     }))
 
 
-(fn node-reify-extractchain [self ctx]
-  (local tid (ctx:type-id self.type))
-  (local base-id (ctx:node-id (. self.operands 1)))
+(fn nodeReifyExtractChain [self ctx]
+  (local tid (ctx:typeID self.type))
+  (local baseID (ctx:nodeID (. self.operands 1)))
   (local indices (. self.operands 2))
-  (local id (ctx:fresh-id))
-  (ctx:instruction ((. Op self.operation) tid id base-id indices))
+  (local id (ctx:freshID))
+  (ctx:instruction ((. Op self.operation) tid id baseID indices))
   id)
 
 (fn Node.extract [base index]
-  (var result-type (Type.extract base.type index))
-  (if (= base.kind :constant) (Node.constant result-type (. base.constant (+ index 1)))
+  (var resultType (Type.extract base.type index))
+  (if (= base.kind :constant) (Node.constant resultType (. base.constant (+ index 1)))
       (and (= base.kind :expr) (= base.operation :OpCompositeExtract))
       (do (local [base indices] base.operands)
           (local indices (icollect [_ v (ipairs indices)] v))
           (table.insert indices index)
-          (Node.extract-chain base result-type indices))
-    (Node.extract-chain base result-type [index])))
+          (Node.extractChain base resultType indices))
+    (Node.extractChain base resultType [index])))
 
-(fn Node.extract-chain [base type indices]
+(fn Node.extractChain [base type indices]
   (Node.new
     { :kind :expr
       :type type
       :operation :OpCompositeExtract
       :operands [base indices]
-      :reify node-reify-extractchain
+      :reify nodeReifyExtractChain
     }))
 
 
-(fn node-reify-extract-dynamic [self ctx]
+(fn nodeReifyExtractDynamic [self ctx]
   (local [base index] self.operands)
-  (local tid (ctx:type-id self.type))
-  (local base-id (ctx:node-id base))
-  (local index-id (ctx:node-id index))
-  (local id (ctx:fresh-id))
-  (ctx:instruction (Op.OpVectorExtractDynamic tid id base-id index-id))
+  (local tid (ctx:typeID self.type))
+  (local baseID (ctx:nodeID base))
+  (local indexID (ctx:nodeID index))
+  (local id (ctx:freshID))
+  (ctx:instruction (Op.OpVectorExtractDynamic tid id baseID indexID))
   id)
 
 ; Extract a dynamic index of a vector
-(fn Node.extract-dynamic [self index]
+(fn Node.extractDynamic [self index]
   (assert (= index.type.kind :int) (.. "Vector must be indexed by an integer, got: " index.type.summary))
   (Node.new
     { :kind :expr
       :type self.elem
       :operation :OpVectorExtractDynamic
       :operands [self index]
-      :reify node-reify-extract-dynamic
+      :reify nodeReifyExtractDynamic
     }))
 
 
-(fn node-reify-shuffle [self ctx]
+(fn nodeReifyShuffle [self ctx]
   (local [vec1 vec2 indices] self.operands)
-  (local tid (ctx:type-id self.type))
-  (local vec1-id (ctx:node-id vec1))
-  (local vec2-id (ctx:node-id vec2))
-  (local id (ctx:fresh-id))
-  (ctx:instruction (Op.OpVectorShuffle tid id vec1-id vec2-id indices))
+  (local tid (ctx:typeID self.type))
+  (local vec1ID (ctx:nodeID vec1))
+  (local vec2ID (ctx:nodeID vec2))
+  (local id (ctx:freshID))
+  (ctx:instruction (Op.OpVectorShuffle tid id vec1ID vec2ID indices))
   id)
 
 (fn Node.shuffle [vec1 vec2 indices]
@@ -3147,9 +3157,9 @@
   (assert (= vec1.type.elem vec2.type.elem)
     (.. "Shuffled vectors must have the same element type, got: " vec1.type.elem.summary " " vec2.type.elem.summary))
 
-  (local combined-count (+ vec1.type.count vec2.type.count))
+  (local combinedCount (+ vec1.type.count vec2.type.count))
   (each [_ index (ipairs indices)]
-    (assert (< -1 index combined-count) (.. "Index not in range for shuffle: " index)))
+    (assert (< -1 index combinedCount) (.. "Index not in range for shuffle: " index)))
 
   (if (= 1 (# indices))
     (do (local [index] indices)
@@ -3161,11 +3171,11 @@
         :type (Type.vector vec1.type.elem (# indices))
         :operation :OpVectorShuffle
         :operands [vec1 vec2 indices]
-        :reify node-reify-shuffle
+        :reify nodeReifyShuffle
       })))
 
 
-(local swizzle-index
+(local swizzleIndex
   { :x 0 :y 1 :z 2 :w 3 
     :r 0 :g 1 :b 2 :a 3
     :u 0 :v 1 :s 2 :t 3
@@ -3179,7 +3189,7 @@
     (index:match "^[0123]+$")) (.. "Unrecognized vector swizzle: " index))
   (local indices
     (fcollect [i 1 (# index)]
-      (. swizzle-index (index:sub i i))))
+      (. swizzleIndex (index:sub i i))))
   (Node.shuffle self self indices))
 
 
@@ -3202,18 +3212,18 @@
       (Node.access self
         (Node.constant (Type.int 32 true) (math.floor index)))
     (:struct :string)
-      (Node.extract self (struct-member-index self.type index))
+      (Node.extract self (structMemberIndex self.type index))
     (where (:vector :string) (index:match "^[xyzwrgbauvst0123]+$"))
       (Node.swizzle self index)
     (where (:vector :table) (node? index))
-      (Node.extract-dynamic self index)
+      (Node.extractDynamic self index)
     (where (:pointer :string))
       (do (local elem self.type.elem)
           (if (= elem.kind :struct)
-                (Node.access self (u32 (struct-member-index elem index)))
+                (Node.access self (u32 (structMemberIndex elem index)))
               (and (= elem.kind :vector)
                    (index:match "^[xyzwrgbauvst0123]$"))
-                (Node.access self (Node.constant (Type.int 32 true) (. swizzle-index index)))
+                (Node.access self (Node.constant (Type.int 32 true) (. swizzleIndex index)))
               (= index "*")
                 (Node.deref self)
               (Node.index (Node.deref self) index)))
@@ -3222,30 +3232,30 @@
     else (error (.. "Index " (tostring index) " invalid for value: " (tostring self)))))
 
 
-(fn node-reify-function-call [self ctx]
+(fn nodeReifyFunctionCall [self ctx]
   (local [func args] self.operands)
-  (local tid (ctx:type-id self.type))
-  (local arg-ids [])
+  (local tid (ctx:typeID self.type))
+  (local argIDs [])
   (each [i arg (ipairs args)]
-    (table.insert arg-ids (ctx:node-id arg))
+    (table.insert argIDs (ctx:nodeID arg))
     (when (= arg.type.kind :pointer)
-      (local base (Node.aux.base-pointer arg))
+      (local base (Node.aux.basePointer arg))
       (when (and (= :variable base.kind) (not= base.storage StorageClass.Function))
-        (ctx:interface-id (ctx:node-id base))))) ; already requested so won't change instructions
-  (local id (ctx:fresh-id))
-  (ctx:instruction (Op.OpFunctionCall tid id func.function.id arg-ids))
+        (ctx:interfaceID (ctx:nodeID base))))) ; already requested so won't change instructions
+  (local id (ctx:freshID))
+  (ctx:instruction (Op.OpFunctionCall tid id func.function.id argIDs))
   (each [iid _ (pairs func.function.interface)]
-    (ctx:interface-id iid))
+    (ctx:interfaceID iid))
   id)
 
 
-(fn Node.function-call [func args]
+(fn Node.functionCall [func args]
   (Node.new
     { :kind :expr
       :type func.function.type.return
       :operation :OpFunctionCall
       :operands [func args]
-      :reify node-reify-function-call
+      :reify nodeReifyFunctionCall
     }))
 
 
@@ -3258,9 +3268,9 @@
         (local args [...])
         (assert (= (# args) (# self.type.params))
           (.. "Function called with the wrong number of arguments: " self.function.name self.function.type.summary))
-        (local cast-args
+        (local castArgs
           (icollect [i arg (ipairs args)] ((. self.type.params i) arg)))
-        (Node.function-call self cast-args))
+        (Node.functionCall self castArgs))
     _ (accumulate [node self _ index (ipairs [...])]
         (Node.index node index))))
 
@@ -3273,8 +3283,8 @@
     :expr (.. "(expr " self.type.summary " " self.operation ")")
     :param (.. "(param " self.type.summary ")")
     :variable (.. "(variable " self.type.summary ")")
-    :constant (.. "(constant " self.type.summary " " (node-constant-summary self) ")")
-    :spec-constant (.. "(spec-constant " self.type.summary (if (rawget self :operation) (.. " " self.operation) "") ")")
+    :constant (.. "(constant " self.type.summary " " (nodeConstantSummary self) ")")
+    :specConstant (.. "(specConstant " self.type.summary (if (rawget self :operation) (.. " " self.operation) "") ")")
     :function (.. "(function " self.type.summary ")")
     :phi (.. "(phi " self.type.summary ")")))
 

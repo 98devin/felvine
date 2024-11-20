@@ -17,7 +17,7 @@
 	model (mat4 f32)
 })
 
-(uniform (0 1) Textures [(sampled-image :2D)])
+(uniform (0 1) Textures [(sampledImage :2D)])
 
 
 (entrypoint vertexMain Vertex []

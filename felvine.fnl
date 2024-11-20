@@ -4,18 +4,18 @@
 (local {: ExecutionEnvironment} (require :requirements))
 (local {: Runtime : Dsl} (require :runtime))
 
-(fn caps-list [e]
-  (local caps (base.get-capabilities e))
+(fn capsList [e]
+  (local caps (base.getCapabilities e))
   (icollect [cap _ (pairs caps)]
     cap))
 
-(fn caps-unpacked [e]
-  (table.unpack (caps-list e)))
+(fn capsUnpacked [e]
+  (table.unpack (capsList e)))
 
 
-(fn felvine-dofile [file runtime]
+(fn felvineDofile [file runtime]
   (local runtime (or runtime (Runtime.new)))
-  (local env (Dsl.create-exported-env runtime))
+  (local env (Dsl.createExportedEnv runtime))
   (fennel.dofile file
     { :env env
       :compilerEnv _G
@@ -24,25 +24,26 @@
   runtime)
 
 
-(fn asm-file [file execution-env]
-  (local run (Runtime.new execution-env))
-  (local start-time (os.clock))
-  (var total-time 0)
+(fn asmFile [file executionEnv]
+  (local run (Runtime.new executionEnv))
+  (local startTime (os.clock))
+  (var totalTime 0)
 
-  (felvine-dofile file run)
-  (local ops (run.env:produce-ops))
+  (felvineDofile file run)
+  (local ops (run.env:produceOps))
 
-  (local end-time (os.clock))
-  (set total-time (+ total-time (- end-time start-time)))
-  (print "finished in" total-time)
+  (local endTime (os.clock))
+  (set totalTime (+ totalTime (- endTime startTime)))
+  (print "finished in" totalTime)
   
+  (print (run.env:produceHeader))
   (each [_ op (ipairs ops)]
-    (print op (caps-unpacked op))))
+    (print op (capsUnpacked op))))
 
 
-(fn translate-file [file]
+(fn translateFile [file]
   (local runtime (Runtime.new))
-  (local env (Dsl.create-exported-env runtime))
+  (local env (Dsl.createExportedEnv runtime))
 
   (local (f err) (io.open file :r))
   (assert (= err nil) err)
@@ -53,68 +54,69 @@
     (fennel.compileString content
       { :requireAsInclude true
         :filename file
+        :compilerEnv _G
         :env env
       }))
 
-  (local out-file-name (file:gsub ".[%w]+$" ".lua"))
-  (local out-file (assert (io.open out-file-name :w)))
-  (out-file:write text)
-  (out-file:close))
+  (local outFileName (file:gsub ".[%w]+$" ".lua"))
+  (local outFile (assert (io.open outFileName :w)))
+  (outFile:write text)
+  (outFile:close))
   
 
-(fn compile-file [file execution-env]
-  (local run (Runtime.new execution-env))
-  (local start-time (os.clock))
-  (var total-time 0)
+(fn compileFile [file executionEnv]
+  (local run (Runtime.new executionEnv))
+  (local startTime (os.clock))
+  (var totalTime 0)
 
-  (felvine-dofile file run)
+  (felvineDofile file run)
   
-  (local ops (run.env:produce-ops))
-  (local header (run.env:produce-header))
+  (local ops (run.env:produceOps))
+  (local header (run.env:produceHeader))
   
   (local buffer [])
   (base.serialize buffer header)
-  (base.serialize-list buffer ops)
+  (base.serializeList buffer ops)
 
-  (local out-file-name (file:gsub ".[%w]+$" ".spv"))
-  (local out-file (assert (io.open out-file-name :wb)))
+  (local outFileName (file:gsub ".[%w]+$" ".spv"))
+  (local outFile (assert (io.open outFileName :wb)))
   (each [_ segment (ipairs buffer)]
-    (out-file:write segment))
-  (out-file:close)
+    (outFile:write segment))
+  (outFile:close)
 
-  (local end-time (os.clock))
-  (set total-time (+ total-time (- end-time start-time)))
-  (print "finished in" total-time ":" out-file-name))
+  (local endTime (os.clock))
+  (set totalTime (+ totalTime (- endTime startTime)))
+  (print "finished in" totalTime ":" outFileName))
 
 
-(var use-execution-env false)
-(var execution-env (ExecutionEnvironment.new { :vk-features {} :spv-features {} }))
+(var useExecutionEnv false)
+(var executionEnv (ExecutionEnvironment.new { :vkFeatures {} :spvFeatures {} }))
 
-(fn handle-args [...]
+(fn handleArgs [...]
   (local consumed
     (case ...
       (:--spv-features features)
-        (do (set use-execution-env true)
+        (do (set useExecutionEnv true)
             (string.gsub features "([%w_]+)" (fn [f]
-              (tset execution-env.spv-features f true)))
+              (tset executionEnv.spvFeatures f true)))
             2)
       (:--vk-features features)
-        (do (set use-execution-env true)
+        (do (set useExecutionEnv true)
             (string.gsub features "([%w_]+)" (fn [f]
-              (tset execution-env.vk-features f true)))
+              (tset executionEnv.vkFeatures f true)))
             2)
       (:--vk-version version)
-        (do (set use-execution-env true)
+        (do (set useExecutionEnv true)
             (string.gsub version "(%d).*(%d)" (fn [major minor]
-              (set execution-env.vk-version {:major (tonumber major) :minor (tonumber minor)})))
+              (set executionEnv.vkVersion {:major (tonumber major) :minor (tonumber minor)})))
             2)
-      (:-S file) (do (asm-file file (if use-execution-env execution-env)) 2)
-      (:-c file) (do (compile-file file (if use-execution-env execution-env)) 2)
-      (:-t file) (do (translate-file file) 2)
+      (:-S file) (do (asmFile file (if useExecutionEnv executionEnv)) 2)
+      (:-c file) (do (compileFile file (if useExecutionEnv executionEnv)) 2)
+      (:-t file) (do (translateFile file) 2)
       unrecognized (do (print "unrecognized argument" unrecognized) 1)
       nil nil))
   (when (not= nil consumed)
-    (handle-args (select (+ consumed 1) ...))))
+    (handleArgs (select (+ consumed 1) ...))))
 
 
-(handle-args (table.unpack arg))
+(handleArgs (table.unpack arg))

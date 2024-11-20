@@ -31,9 +31,9 @@
 
     (set* outPosition (*r UBO.projection UBO.model ((vec4 f32) pos 1.0)))
     (set* outColor [1.0 0.0 0.0])
-    (geometry.emit-vertex)
+    (geometry.emitVertex)
 
     (set* outPosition (*r UBO.projection UBO.model ((vec4 f32) (*+ normal normalLength pos) 1.0)))
     (set* outColor [0.0 0.0 1.0])
-    (geometry.emit-vertex)
-    (geometry.end-primitive)))
+    (geometry.emitVertex)
+    (geometry.endPrimitive)))

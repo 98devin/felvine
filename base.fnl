@@ -2,10 +2,10 @@
 
 (fn enum? [value]
   (when (= :table (type value))
-    (local value-mt (getmetatable value))
-    (if (?. value-mt :__enum) (?. value-mt :__name))))
+    (local valueMT (getmetatable value))
+    (if (?. valueMT :__enum) (?. valueMT :__name))))
 
-(fn get-capabilities [item caps]
+(fn getCapabilities [item caps]
   (local caps (or caps {}))
   (local mt (getmetatable item))
   (local method (. mt :__capabilities))
@@ -13,7 +13,7 @@
     (method item caps))
   caps)
 
-(fn get-extensions [item exts]
+(fn getExtensions [item exts]
   (local exts (or exts {}))
   (local mt (getmetatable item))
   (local method (. mt :__extensions))
@@ -21,7 +21,7 @@
     (method item exts))
   exts)
 
-(fn map-operands [item f]
+(fn mapOperands [item f]
   (local mt (getmetatable item))
   (local method (. mt :__mapoperands))
   (if (not= nil method)
@@ -33,56 +33,56 @@
   (when (not= nil method)
     (method buffer item))) 
 
-(fn serializable-with [serialize item]
-  (fn wrapped-serialize [buffer o]
+(fn serializableWith [serialize item]
+  (fn wrappedSerialize [buffer o]
     (serialize buffer o.value))
-  (fn wrapped-tostring [o]
+  (fn wrappedToString [o]
     (tostring o.value))
-  (local mt { :__serialize wrapped-serialize :__tostring wrapped-tostring })
+  (local mt { :__serialize wrappedSerialize :__tostring wrappedToString })
   (setmetatable { :value item } mt))
 
-(fn serialize-tmp-with [serialize item]
+(fn serizlizeTmpWith [serialize item]
   (local buffer [])
   (serialize buffer item)
   buffer)
 
-(fn serialize-tmp [item]
-  (serialize-tmp-with serialize item))
+(fn serializeTmp [item]
+  (serizlizeTmpWith serialize item))
 
-(fn serialize-append-sub-buffer [buffer sub-buffer]
-  (each [_ s (ipairs sub-buffer)]
+(fn serializeAppendSubBuffer [buffer subBuffer]
+  (each [_ s (ipairs subBuffer)]
     (table.insert buffer s)))
 
-(fn serialize-fmt [fmt buffer ...]
+(fn serializeFmt [fmt buffer ...]
   (let [s (string.pack (.. "!4<" fmt "XI4") ...)] (table.insert buffer s)))
     
-(fn serialize-via [fmt] (partial serialize-fmt fmt))
+(fn serializeVia [fmt] (partial serializeFmt fmt))
 
-(fn serializable-with-fmt [fmt item]
-  (serializable-with (serialize-via fmt) item))
+(fn serializableWithFmt [fmt item]
+  (serializableWith (serializeVia fmt) item))
   
-(fn serialize-list-via [fmt]
-  (fn [buffer item] (serialize-fmt fmt buffer (table.unpack item))))
+(fn serializeListVia [fmt]
+  (fn [buffer item] (serializeFmt fmt buffer (table.unpack item))))
 
-(fn serialize-list-with [serialize buffer item]
+(fn serializeListWith [serialize buffer item]
   (each [_ v (ipairs item)] (serialize buffer v)))
 
-(local serialize-list (partial serialize-list-with serialize))
+(local serializeList (partial serializeListWith serialize))
 
 
-(local basic-serializers {
-  :Id (serialize-via "I4")                              ; u32
-  :IdRef (serialize-via "I4")                           ; u32
-  :IdMemorySemantics (serialize-via "I4")               ; u32
-  :IdScope (serialize-via "I4")                         ; u32
-  :IdResult (serialize-via "I4")                        ; u32
-  :IdResultType (serialize-via "I4")                    ; u32
-  :LiteralInteger (serialize-via "i4")                  ; i32
-  :LiteralFloat (serialize-via "f")                     ; f32
-  :LiteralString (serialize-via "z XI4")                ; string
-  :LiteralExtInstInteger (serialize-via "I4")           ; u32
-  :PairLiteralIntegerIdRef (serialize-list-via "i4 I4") ; (i32, u32)
-  :PairIdRefIdRef (serialize-list-via "I4 I4")          ; (u32, u32)
+(local basicSerializers {
+  :Id (serializeVia "I4")                             ; u32
+  :IdRef (serializeVia "I4")                          ; u32
+  :IdMemorySemantics (serializeVia "I4")              ; u32
+  :IdScope (serializeVia "I4")                        ; u32
+  :IdResult (serializeVia "I4")                       ; u32
+  :IdResultType (serializeVia "I4")                   ; u32
+  :LiteralInteger (serializeVia "i4")                 ; i32
+  :LiteralFloat (serializeVia "f")                    ; f32
+  :LiteralString (serializeVia "z XI4")               ; string
+  :LiteralExtInstInteger (serializeVia "I4")          ; u32
+  :PairLiteralIntegerIdRef (serializeListVia "i4 I4") ; (i32, u32)
+  :PairIdRefIdRef (serializeListVia "I4 I4")          ; (u32, u32)
 })
 
 
@@ -90,13 +90,13 @@
 ; .tag      string
 ; .value    number
 ; .operands ?list[any]
-(local enumerant-value-proto
+(local enumerantValueProto
   { :operands []
   })
 
-(fn value-enumerant-mt [enum]
+(fn valueEnumerantMT [enum]
   (local mt { :__enum true :__name enum.name })
-  (set mt.__index enumerant-value-proto)
+  (set mt.__index enumerantValueProto)
   (fn mt.__eq [x y] (= x.value y.value))
   (fn mt.__lt [x y] (< x.value y.value))
   (fn mt.__le [x y] (<= x.value y.value))
@@ -116,10 +116,10 @@
     (local desc (. enum.enumerants v.tag))
     (if (= 0 (# desc.operands)) v ; nothing to map
       (do 
-        (local mapped-operands [])
-        (icollect [i arg (ipairs v.operands) &into mapped-operands]
+        (local mappedOperands [])
+        (icollect [i arg (ipairs v.operands) &into mappedOperands]
           (let [opdesc (. desc.operands i)] (f arg opdesc v.tag enum.name)))
-        ((. enum v.tag) (table.unpack mapped-operands))
+        ((. enum v.tag) (table.unpack mappedOperands))
       )))
 
   (fn mt.__capabilities [v caps]
@@ -129,7 +129,7 @@
         (tset caps cap true)))
     (when v.operands
       (each [_ arg (ipairs v.operands)]
-        (when (enum? arg) (get-capabilities arg caps)))))
+        (when (enum? arg) (getCapabilities arg caps)))))
 
   (fn mt.__extensions [v exts]
     (local desc (. enum.enumerants v.tag))
@@ -138,65 +138,65 @@
         (tset exts ext true)))
     (when v.operands
       (each [_ arg (ipairs v.operands)]
-        (when (enum? arg) (get-extensions arg exts)))))
+        (when (enum? arg) (getExtensions arg exts)))))
 
   (fn mt.__serialize [buffer v]
     (local desc (. enum.enumerants v.tag))
-    (serialize-fmt "I4" buffer v.value)
+    (serializeFmt "I4" buffer v.value)
     (each [i opdesc (ipairs desc.operands)]
       (local arg (?. v.operands i))
-      (local serializer (or (?. basic-serializers opdesc.kind) serialize))
+      (local serializer (or (?. basicSerializers opdesc.kind) serialize))
       (case (values opdesc.quantifier arg)
         (:? nil) nil
-        (:* arg) (serialize-list-with serializer buffer arg)
+        (:* arg) (serializeListWith serializer buffer arg)
         (_  arg) (serializer buffer arg))))
   mt)
 
-(fn op-enumerant-mt [enum]
-  (local mt (value-enumerant-mt enum))
+(fn opEnumerantMT [enum]
+  (local mt (valueEnumerantMT enum))
   (fn mt.__serialize [buffer op]
     (local desc (. enum.enumerants op.tag))
-    (local sub-buffer [])
+    (local subBuffer [])
     (each [i opdesc (ipairs desc.operands)]
       (local arg (?. op.operands i))
       ; (print enum.name op.tag opdesc.name (tostring arg))
-      (local serializer (or (?. basic-serializers opdesc.kind) serialize))
+      (local serializer (or (?. basicSerializers opdesc.kind) serialize))
       (case (values opdesc.quantifier arg)
         (:? nil) nil
-        (:* arg) (serialize-list-with serializer sub-buffer arg)
-        (_  arg) (serializer sub-buffer arg)))
-    (local op-len
-      (accumulate [len 1 _ s (ipairs sub-buffer)]
+        (:* arg) (serializeListWith serializer subBuffer arg)
+        (_  arg) (serializer subBuffer arg)))
+    (local opLen
+      (accumulate [len 1 _ s (ipairs subBuffer)]
         (+ len (/ (s:len) 4))))
-    (serialize-fmt "I2 I2" buffer op.value op-len)
-    (serialize-append-sub-buffer buffer sub-buffer))
+    (serializeFmt "I2 I2" buffer op.value opLen)
+    (serializeAppendSubBuffer buffer subBuffer))
   mt)
 
-(fn bits-enumerant-mt [enum]
-  (local mt (value-enumerant-mt enum))
+(fn bitsEnumerantMT [enum]
+  (local mt (valueEnumerantMT enum))
   (fn mt.__serialize [buffer v]
     (local desc (. enum.enumerants v.tag))
     (local opdescs (or desc.operands []))
     (each [i opdesc (ipairs opdescs)]
       (local arg (?. v.operands i))
       ; (print enum.name v.tag opdesc.name (tostring arg))
-      (local serializer (or (?. basic-serializers opdesc.kind) serialize))
+      (local serializer (or (?. basicSerializers opdesc.kind) serialize))
       (case (values opdesc.quantifier arg)
         (:? nil) nil
-        (:* arg) (serialize-list-with serializer buffer arg)
+        (:* arg) (serializeListWith serializer buffer arg)
         (_  arg) (serializer buffer arg))))
   mt)
 
 ; bits-enumerant-list structure
-; .value-union   number
-; .get-tag       table[string, enumerant-value]
-; .get-value     table[number, enumerant-value]
+; .valueUnion   number
+; .getTag       table[string, enumerant-value]
+; .getValue     table[number, enumerant-value]
 ; .constituents  list[enumerant] # sorted by value
 
-(fn bits-enumerant-list-mt [enum]
+(fn bitsEnumerantListMT [enum]
   (local mt { :__enum true :__name enum.name })
   (fn mt.__index [self t/v]
-    (or (. self.get-tag t/v) (. self.get-value t/v) (. mt t/v)))
+    (or (. self.getTag t/v) (. self.getValue t/v) (. mt t/v)))
 
   (fn mt.__tostring [self]
     (case (# self.constituents)
@@ -205,21 +205,21 @@
           (table.concat (icollect [_ c (ipairs self.constituents)] (tostring c)) " ") ")")))
       
   (fn mt.__mapoperands [v f]
-    (local mapped-constituents [])
-    (icollect [_ constituent (ipairs v.constituents) &into mapped-constituents]
-      (map-operands constituent f))
-    (enum (table.unpack mapped-constituents)))
+    (local mappedConstituents [])
+    (icollect [_ constituent (ipairs v.constituents) &into mappedConstituents]
+      (mapOperands constituent f))
+    (enum (table.unpack mappedConstituents)))
 
   (fn mt.__capabilities [v caps]
     (each [_ e (ipairs v.constituents)]
-      (get-capabilities e caps)))
+      (getCapabilities e caps)))
 
   (fn mt.__extensions [v exts]
     (each [_ e (ipairs v.constituents)]
-      (get-extensions e exts)))
+      (getExtensions e exts)))
 
   (fn mt.__serialize [buffer v]
-    (serialize-fmt "I" buffer v.value-union)
+    (serializeFmt "I" buffer v.valueUnion)
     (each [_ constituent (ipairs v.constituents)]
       (serialize buffer constituent)))
 
@@ -238,7 +238,7 @@
 ; .extensions   ?list[string]
 ; .capabilities ?list[string]
 
-(local enumerant-desc-proto
+(local enumerantDescProto
   { :operands []
     :extensions []
     :capabilities []
@@ -249,113 +249,113 @@
 ; .name         string
 ; .kind         :value
 ; .enumerants   table[string, enumerant-desc]
-; .get-value    table[number, enumerant-desc]
+; .getValue    table[number, enumerant-desc]
 ; __index       -> get enumerant or enumerant initializer
 
 ; op-enum structure
 ; .name         string
 ; .kind         :op
 ; .enumerants   table[string, enumerant-desc]
-; .get-value    table[number, enumerant-desc]
+; .getValue    table[number, enumerant-desc]
 ; __index       -> get enumerant or enumerant initializer
 
 ; bits-enum structure
 ; .name         string
 ; .kind         :bits
 ; .enumerants   table[string, enumerant-desc]
-; .get-value    table[number, enumerant-desc]
+; .getValue    table[number, enumerant-desc]
 ; __index       -> get enumerant or enumerant initializer
 ; __call        -> create enumerant list value
 
-(fn value-enum-mt [enum]
+(fn valueEnumMT [enum]
   (local mt { :__enum true :__name enum.name })
-  (set mt.enumerant-mt (value-enumerant-mt enum))
+  (set mt.enumerantMT (valueEnumerantMT enum))
 
-  (fn mt.make-value [desc]
-    (setmetatable { :tag desc.tag :value desc.value } mt.enumerant-mt))
+  (fn mt.makeValue [desc]
+    (setmetatable { :tag desc.tag :value desc.value } mt.enumerantMT))
 
-  (fn mt.make-value-factory [desc]
+  (fn mt.makeValueFactory [desc]
     (fn [...] 
-      (setmetatable { :tag desc.tag :value desc.value :operands [...] } mt.enumerant-mt)))
+      (setmetatable { :tag desc.tag :value desc.value :operands [...] } mt.enumerantMT)))
 
   (fn mt.__index [self t/v]
-    (local desc (or (. self.enumerants t/v) (. self.get-value t/v)))
+    (local desc (or (. self.enumerants t/v) (. self.getValue t/v)))
     (when (= nil desc) (error (.. "Enum " self.name ": No such enumerant or value: " (tostring t/v))))
     (if (= 0 (# desc.operands))
-      (mt.make-value desc)
-      (mt.make-value-factory desc)))
+      (mt.makeValue desc)
+      (mt.makeValueFactory desc)))
   mt)
 
 
-(fn bits-enum-mt [enum]
-  (local mt (value-enum-mt enum))
-  (set mt.enumerant-mt (bits-enumerant-mt enum))
-  (local enumerant-list-mt (bits-enumerant-list-mt enum))
+(fn bitsEnumMT [enum]
+  (local mt (valueEnumMT enum))
+  (set mt.enumerantMT (bitsEnumerantMT enum))
+  (local enumerantListMT (bitsEnumerantListMT enum))
   
   (fn mt.__call [self ...]
   
-    (local constituent-inputs [])
+    (local constituentInputs [])
     (each [_ arg (ipairs [...])]
       (assert (= (enum? arg) enum.name) (.. "Incorrect type used in enum constructor for: " enum.name))
       (if arg.constituents
-        (each [_ constituent (ipairs arg.constituents)] (table.insert constituent-inputs constituent))
-        (table.insert constituent-inputs arg)))
+        (each [_ constituent (ipairs arg.constituents)] (table.insert constituentInputs constituent))
+        (table.insert constituentInputs arg)))
   
-    (local get-value
-      (collect [_ e (ipairs constituent-inputs)]
+    (local getValue
+      (collect [_ e (ipairs constituentInputs)]
         e.value e))
-    (local get-tag
-      (collect [_ e (ipairs constituent-inputs)]
+    (local getTag
+      (collect [_ e (ipairs constituentInputs)]
         e.tag e))
-    (local value-union
-      (accumulate [union 0 _ e (ipairs constituent-inputs)]
+    (local valueUnion
+      (accumulate [union 0 _ e (ipairs constituentInputs)]
         (bor union e.value)))
     (local constituents
-      (icollect [_ e (pairs get-value)] e))
+      (icollect [_ e (pairs getValue)] e))
     (table.sort constituents)
 
     (local o
-      { : value-union
-        : get-value
-        : get-tag
+      { : valueUnion
+        : getValue
+        : getTag
         : constituents
       })
-    (setmetatable o enumerant-list-mt))
+    (setmetatable o enumerantListMT))
 
   mt)
 
 
-(fn op-enum-mt [enum]
-  (local mt (value-enum-mt enum))
-  (set mt.enumerant-mt (op-enumerant-mt enum))
+(fn opEnumMT [enum]
+  (local mt (valueEnumMT enum))
+  (set mt.enumerantMT (opEnumerantMT enum))
   mt)
 
 
-(fn ext-enum-mt [enum]
-  (local mt (value-enum-mt enum))
-  (fn mt.make-value [desc] desc.value)
-  (fn mt.make-value-factory [desc]
+(fn extEnumMT [enum]
+  (local mt (valueEnumMT enum))
+  (fn mt.makeValue [desc] desc.value)
+  (fn mt.makeValueFactory [desc]
     (fn [...] (values desc.value [...])))
   mt)
 
 
-(fn mk-enum [name kind enumerants]
-  (local make-mt
+(fn mkEnum [name kind enumerants]
+  (local makeMT
     (case kind
-      :bits bits-enum-mt 
-      :value value-enum-mt
-      :ext ext-enum-mt
-      :op op-enum-mt))
-  (local desc-mt { :__index enumerant-desc-proto })
-  (local get-value
+      :bits bitsEnumMT
+      :value valueEnumMT
+      :ext extEnumMT
+      :op opEnumMT))
+  (local descMT { :__index enumerantDescProto })
+  (local getValue
     (collect [tag desc (pairs enumerants)]
-      desc.value (setmetatable desc desc-mt)))
+      desc.value (setmetatable desc descMT)))
   (local enum
     { : name 
       : kind
       : enumerants
-      : get-value })
-  (setmetatable enum (make-mt enum)))
+      : getValue })
+  (setmetatable enum (makeMT enum)))
 
 
 (local SpirvHeader {})
@@ -385,16 +385,17 @@
   (let [o (or o {})] (setmetatable o SpirvHeader.mt)))
 
 {: serialize
- : serializable-with
- : serialize-fmt
- : serializable-with-fmt
- : serialize-tmp
- : serialize-tmp-with
- : serialize-list
- : serialize-list-with
- : get-capabilities
- : get-extensions
- : map-operands
- : mk-enum
+ : serializableWith
+ : serializeFmt
+ : serializableWithFmt
+ : serializeTmp
+ : serizlizeTmpWith
+ : serializeList
+ : serializeListWith
+ : getCapabilities
+ : getExtensions
+ : mapOperands
+ : mkEnum
  : enum?
- : SpirvHeader}
+ : SpirvHeader
+ }

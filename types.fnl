@@ -5,8 +5,8 @@
 (local void (Type.void))
 (local bool (Type.bool))
 (local sampler (Type.sampler))
-(local acceleration-structure (Type.acceleration-structure))
-(local ray-query (Type.ray-query))
+(local accelerationStructure (Type.accelerationStructure))
+(local rayQuery (Type.rayQuery))
 
 (local i8  (Type.int 8  true))
 (local i16 (Type.int 16 true))
@@ -45,7 +45,7 @@
 (local pointer Type.pointer)
 (local struct Type.struct)
 
-(fn *P [elem] (Type.pointer elem StorageClass.PhysicalStorageBuffer64))
+(fn *P [elem] (Type.pointer elem StorageClass.PhysicalStorageBuffer))
 (fn *W [elem] (Type.pointer elem StorageClass.Workgroup))
 (fn *G [elem] (Type.pointer elem StorageClass.Generic))
 (fn *I [elem] (Type.pointer elem StorageClass.Input))
@@ -53,7 +53,7 @@
 
 ; types for builtins which cannot vary in type,
 ; ignoring whether they may be in an array.
-(local simple-builtin-types
+(local simpleBuiltinTypes
   (do 
     (local vec4f (vec4 f32))
     (local vec3f (vec3 f32))
@@ -175,7 +175,7 @@
       :ShaderIndexAMDX u32
     }))
 
-(local image-format-element
+(local imageFormatElement
   {
     ; floating formats
     :Rgba32f f32
@@ -240,14 +240,14 @@
       (where v (?. ImageFormat.enumerants v))
         (do (local format (. ImageFormat v))
             (set o.format format)
-            (set o.elem (. image-format-element format.tag)))
+            (set o.elem (. imageFormatElement format.tag)))
       (where v (?. Dim.enumerants v)) (set o.dim (. Dim v))
       (where v (enum? v))
         (case (enum? v)
           nil nil ; just ignore this. it's not useful for us
           :ImageFormat
             (do (set o.format v)
-                (set o.elem (. image-format-element v.tag)))
+                (set o.elem (. imageFormatElement v.tag)))
           :Dim (set o.dim v))
       _ nil))
   o)
@@ -265,15 +265,15 @@
   (assert spec.usage "Image usage among (:texture/:sampled, :storage) must be specified")
   (Type.new spec))
 
-(fn sampled-image [...]
+(fn sampledImage [...]
   (Type.sampled (image :texture ...)))
 
 
 { : void
   : bool
   : sampler
-  : acceleration-structure
-  : ray-query
+  : accelerationStructure
+  : rayQuery
   : i8
   : i16
   : i32
@@ -310,7 +310,7 @@
   : *O
   : struct
   : image
-  : sampled-image
+  : sampledImage
   : Type
   : type?
 }

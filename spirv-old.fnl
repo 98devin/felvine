@@ -1,11 +1,12 @@
-(local {: mkEnum} (include :base))
-(local magicNumber 0x07230203)
-(local majorVersion 1)
-(local minorVersion 6)
-(local version { :major 1 :minor 6 })
-(local revision 4)
+(local {: mk-enum} (require :base))
 
-(local ImageOperands (mkEnum :ImageOperands :bits {
+(local magic-number 0x07230203)
+(local major-version 1)
+(local minor-version 6)
+(local version { :major 1 :minor 6 })
+(local revision 1)
+
+(local ImageOperands (mk-enum :ImageOperands :bits {
     :Bias {
         :tag :Bias
         :value 1
@@ -87,9 +88,6 @@
         :tag :MakeTexelAvailable
         :value 256
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -101,9 +99,6 @@
         :tag :MakeTexelVisible
         :value 512
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -115,9 +110,6 @@
         :tag :NonPrivateTexel
         :value 1024
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -126,9 +118,6 @@
         :tag :VolatileTexel
         :value 2048
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -158,8 +147,13 @@
     }
 }))
 
+(set ImageOperands.enumerants.MakeTexelAvailableKHR ImageOperands.enumerants.MakeTexelAvailable)
+(set ImageOperands.enumerants.MakeTexelVisibleKHR ImageOperands.enumerants.MakeTexelVisible)
+(set ImageOperands.enumerants.NonPrivateTexelKHR ImageOperands.enumerants.NonPrivateTexel)
+(set ImageOperands.enumerants.VolatileTexelKHR ImageOperands.enumerants.VolatileTexel)
 
-(local FPFastMathMode (mkEnum :FPFastMathMode :bits {
+
+(local FPFastMathMode (mk-enum :FPFastMathMode :bits {
     :NotNaN {
         :tag :NotNaN
         :value 1
@@ -210,8 +204,11 @@
     }
 }))
 
+(set FPFastMathMode.enumerants.AllowContractFastINTEL FPFastMathMode.enumerants.AllowContract)
+(set FPFastMathMode.enumerants.AllowReassocINTEL FPFastMathMode.enumerants.AllowReassoc)
 
-(local SelectionControl (mkEnum :SelectionControl :bits {
+
+(local SelectionControl (mk-enum :SelectionControl :bits {
     :Flatten {
         :tag :Flatten
         :value 1
@@ -225,7 +222,7 @@
 }))
 
 
-(local LoopControl (mkEnum :LoopControl :bits {
+(local LoopControl (mk-enum :LoopControl :bits {
     :Unroll {
         :tag :Unroll
         :value 1
@@ -389,7 +386,7 @@
 }))
 
 
-(local FunctionControl (mkEnum :FunctionControl :bits {
+(local FunctionControl (mk-enum :FunctionControl :bits {
     :Inline {
         :tag :Inline
         :value 1
@@ -410,17 +407,17 @@
         :value 8
         :version { :major 1 :minor 0 }
     }
-    :OptNoneEXT {
-        :tag :OptNoneEXT
+    :OptNoneINTEL {
+        :tag :OptNoneINTEL
         :value 65536
         :capabilities [
-            :OptNoneEXT
+            :OptNoneINTEL
         ]
     }
 }))
 
 
-(local MemorySemantics (mkEnum :MemorySemantics :bits {
+(local MemorySemantics (mk-enum :MemorySemantics :bits {
     :Acquire {
         :tag :Acquire
         :value 2
@@ -481,9 +478,6 @@
         :tag :OutputMemory
         :value 4096
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -492,9 +486,6 @@
         :tag :MakeAvailable
         :value 8192
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -503,9 +494,6 @@
         :tag :MakeVisible
         :value 16384
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -523,8 +511,12 @@
     }
 }))
 
+(set MemorySemantics.enumerants.OutputMemoryKHR MemorySemantics.enumerants.OutputMemory)
+(set MemorySemantics.enumerants.MakeAvailableKHR MemorySemantics.enumerants.MakeAvailable)
+(set MemorySemantics.enumerants.MakeVisibleKHR MemorySemantics.enumerants.MakeVisible)
 
-(local MemoryAccess (mkEnum :MemoryAccess :bits {
+
+(local MemoryAccess (mk-enum :MemoryAccess :bits {
     :Volatile {
         :tag :Volatile
         :value 1
@@ -547,9 +539,6 @@
         :tag :MakePointerAvailable
         :value 8
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -561,9 +550,6 @@
         :tag :MakePointerVisible
         :value 16
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -575,9 +561,6 @@
         :tag :NonPrivatePointer
         :value 32
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
@@ -610,8 +593,12 @@
     }
 }))
 
+(set MemoryAccess.enumerants.MakePointerAvailableKHR MemoryAccess.enumerants.MakePointerAvailable)
+(set MemoryAccess.enumerants.MakePointerVisibleKHR MemoryAccess.enumerants.MakePointerVisible)
+(set MemoryAccess.enumerants.NonPrivatePointerKHR MemoryAccess.enumerants.NonPrivatePointer)
 
-(local KernelProfilingInfo (mkEnum :KernelProfilingInfo :bits {
+
+(local KernelProfilingInfo (mk-enum :KernelProfilingInfo :bits {
     :CmdExecTime {
         :tag :CmdExecTime
         :value 1
@@ -623,7 +610,7 @@
 }))
 
 
-(local RayFlags (mkEnum :RayFlags :bits {
+(local RayFlags (mk-enum :RayFlags :bits {
     :OpaqueKHR {
         :tag :OpaqueKHR
         :value 1
@@ -712,7 +699,7 @@
 }))
 
 
-(local FragmentShadingRate (mkEnum :FragmentShadingRate :bits {
+(local FragmentShadingRate (mk-enum :FragmentShadingRate :bits {
     :Vertical2Pixels {
         :tag :Vertical2Pixels
         :value 1
@@ -744,7 +731,7 @@
 }))
 
 
-(local RawAccessChainOperands (mkEnum :RawAccessChainOperands :bits {
+(local RawAccessChainOperands (mk-enum :RawAccessChainOperands :bits {
     :RobustnessPerComponentNV {
         :tag :RobustnessPerComponentNV
         :value 1
@@ -762,7 +749,7 @@
 }))
 
 
-(local SourceLanguage (mkEnum :SourceLanguage :value {
+(local SourceLanguage (mk-enum :SourceLanguage :value {
     :Unknown {
         :tag :Unknown
         :value 0
@@ -831,7 +818,7 @@
 }))
 
 
-(local ExecutionModel (mkEnum :ExecutionModel :value {
+(local ExecutionModel (mk-enum :ExecutionModel :value {
     :Vertex {
         :tag :Vertex
         :value 0
@@ -966,8 +953,15 @@
     }
 }))
 
+(set ExecutionModel.enumerants.RayGenerationNV ExecutionModel.enumerants.RayGenerationKHR)
+(set ExecutionModel.enumerants.IntersectionNV ExecutionModel.enumerants.IntersectionKHR)
+(set ExecutionModel.enumerants.AnyHitNV ExecutionModel.enumerants.AnyHitKHR)
+(set ExecutionModel.enumerants.ClosestHitNV ExecutionModel.enumerants.ClosestHitKHR)
+(set ExecutionModel.enumerants.MissNV ExecutionModel.enumerants.MissKHR)
+(set ExecutionModel.enumerants.CallableNV ExecutionModel.enumerants.CallableKHR)
 
-(local AddressingModel (mkEnum :AddressingModel :value {
+
+(local AddressingModel (mk-enum :AddressingModel :value {
     :Logical {
         :tag :Logical
         :value 0
@@ -1003,8 +997,10 @@
     }
 }))
 
+(set AddressingModel.enumerants.PhysicalStorageBuffer64EXT AddressingModel.enumerants.PhysicalStorageBuffer64)
 
-(local MemoryModel (mkEnum :MemoryModel :value {
+
+(local MemoryModel (mk-enum :MemoryModel :value {
     :Simple {
         :tag :Simple
         :value 0
@@ -1033,17 +1029,16 @@
         :tag :Vulkan
         :value 3
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
         :capabilities [
             :VulkanMemoryModel
         ]
     }
 }))
 
+(set MemoryModel.enumerants.VulkanKHR MemoryModel.enumerants.Vulkan)
 
-(local ExecutionMode (mkEnum :ExecutionMode :value {
+
+(local ExecutionMode (mk-enum :ExecutionMode :value {
     :Invocations {
         :tag :Invocations
         :value 0
@@ -1524,16 +1519,6 @@
             :ShaderEnqueueAMDX
         ]
     }
-    :IsApiEntryAMDX {
-        :tag :IsApiEntryAMDX
-        :value 5070
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdRef :name "Is Entry"}
-        ]
-    }
     :MaxNodeRecursionAMDX {
         :tag :MaxNodeRecursionAMDX
         :value 5071
@@ -1658,17 +1643,6 @@
             :QuadControlKHR
         ]
     }
-    :SharesInputWithAMDX {
-        :tag :SharesInputWithAMDX
-        :value 5102
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdRef :name "Node Name"}
-            {:kind :IdRef :name "Shader Index"}
-        ]
-    }
     :OutputLinesEXT {
         :tag :OutputLinesEXT
         :value 5269
@@ -1696,28 +1670,24 @@
             {:kind :LiteralInteger :name "Primitive count"}
         ]
     }
-    :DerivativeGroupQuadsKHR {
-        :tag :DerivativeGroupQuadsKHR
+    :DerivativeGroupQuadsNV {
+        :tag :DerivativeGroupQuadsNV
         :value 5289
         :extensions [
             :SPV_NV_compute_shader_derivatives
-            :SPV_KHR_compute_shader_derivatives
         ]
         :capabilities [
             :ComputeDerivativeGroupQuadsNV
-            :ComputeDerivativeGroupQuadsKHR
         ]
     }
-    :DerivativeGroupLinearKHR {
-        :tag :DerivativeGroupLinearKHR
+    :DerivativeGroupLinearNV {
+        :tag :DerivativeGroupLinearNV
         :value 5290
         :extensions [
             :SPV_NV_compute_shader_derivatives
-            :SPV_KHR_compute_shader_derivatives
         ]
         :capabilities [
             :ComputeDerivativeGroupLinearNV
-            :ComputeDerivativeGroupLinearKHR
         ]
     }
     :OutputTrianglesEXT {
@@ -1986,8 +1956,12 @@
     }
 }))
 
+(set ExecutionMode.enumerants.OutputLinesNV ExecutionMode.enumerants.OutputLinesEXT)
+(set ExecutionMode.enumerants.OutputPrimitivesNV ExecutionMode.enumerants.OutputPrimitivesEXT)
+(set ExecutionMode.enumerants.OutputTrianglesNV ExecutionMode.enumerants.OutputTrianglesEXT)
 
-(local StorageClass (mkEnum :StorageClass :value {
+
+(local StorageClass (mk-enum :StorageClass :value {
     :UniformConstant {
         :tag :UniformConstant
         :value 0
@@ -2093,6 +2067,13 @@
             :ShaderEnqueueAMDX
         ]
     }
+    :NodeOutputPayloadAMDX {
+        :tag :NodeOutputPayloadAMDX
+        :value 5076
+        :capabilities [
+            :ShaderEnqueueAMDX
+        ]
+    }
     :CallableDataKHR {
         :tag :CallableDataKHR
         :value 5328
@@ -2165,8 +2146,8 @@
             :RayTracingKHR
         ]
     }
-    :PhysicalStorageBuffer {
-        :tag :PhysicalStorageBuffer
+    :PhysicalStorageBuffer64 {
+        :tag :PhysicalStorageBuffer64
         :value 5349
         :version { :major 1 :minor 5 }
         :extensions [
@@ -2227,8 +2208,16 @@
     }
 }))
 
+(set StorageClass.enumerants.CallableDataNV StorageClass.enumerants.CallableDataKHR)
+(set StorageClass.enumerants.IncomingCallableDataNV StorageClass.enumerants.IncomingCallableDataKHR)
+(set StorageClass.enumerants.RayPayloadNV StorageClass.enumerants.RayPayloadKHR)
+(set StorageClass.enumerants.HitAttributeNV StorageClass.enumerants.HitAttributeKHR)
+(set StorageClass.enumerants.IncomingRayPayloadNV StorageClass.enumerants.IncomingRayPayloadKHR)
+(set StorageClass.enumerants.ShaderRecordBufferNV StorageClass.enumerants.ShaderRecordBufferKHR)
+(set StorageClass.enumerants.PhysicalStorageBufferEXT StorageClass.enumerants.PhysicalStorageBuffer64)
 
-(local Dim (mkEnum :Dim :value {
+
+(local Dim (mk-enum :Dim :value {
     :1D {
         :tag :1D
         :value 0
@@ -2289,7 +2278,7 @@
 }))
 
 
-(local SamplerAddressingMode (mkEnum :SamplerAddressingMode :value {
+(local SamplerAddressingMode (mk-enum :SamplerAddressingMode :value {
     :None {
         :tag :None
         :value 0
@@ -2318,7 +2307,7 @@
 }))
 
 
-(local SamplerFilterMode (mkEnum :SamplerFilterMode :value {
+(local SamplerFilterMode (mk-enum :SamplerFilterMode :value {
     :Nearest {
         :tag :Nearest
         :value 0
@@ -2332,7 +2321,7 @@
 }))
 
 
-(local ImageFormat (mkEnum :ImageFormat :value {
+(local ImageFormat (mk-enum :ImageFormat :value {
     :Unknown {
         :tag :Unknown
         :value 0
@@ -2669,7 +2658,7 @@
 }))
 
 
-(local ImageChannelOrder (mkEnum :ImageChannelOrder :value {
+(local ImageChannelOrder (mk-enum :ImageChannelOrder :value {
     :R {
         :tag :R
         :value 0
@@ -2773,7 +2762,7 @@
 }))
 
 
-(local ImageChannelDataType (mkEnum :ImageChannelDataType :value {
+(local ImageChannelDataType (mk-enum :ImageChannelDataType :value {
     :SnormInt8 {
         :tag :SnormInt8
         :value 0
@@ -2869,15 +2858,10 @@
         :value 20
         :version { :major 1 :minor 0 }
     }
-    :UnormInt2_101010EXT {
-        :tag :UnormInt2_101010EXT
-        :value 21
-        :version { :major 1 :minor 0 }
-    }
 }))
 
 
-(local FPRoundingMode (mkEnum :FPRoundingMode :value {
+(local FPRoundingMode (mk-enum :FPRoundingMode :value {
     :RTE {
         :tag :RTE
         :value 0
@@ -2901,7 +2885,7 @@
 }))
 
 
-(local FPDenormMode (mkEnum :FPDenormMode :value {
+(local FPDenormMode (mk-enum :FPDenormMode :value {
     :Preserve {
         :tag :Preserve
         :value 0
@@ -2919,7 +2903,7 @@
 }))
 
 
-(local QuantizationModes (mkEnum :QuantizationModes :value {
+(local QuantizationModes (mk-enum :QuantizationModes :value {
     :TRN {
         :tag :TRN
         :value 0
@@ -2979,7 +2963,7 @@
 }))
 
 
-(local FPOperationMode (mkEnum :FPOperationMode :value {
+(local FPOperationMode (mk-enum :FPOperationMode :value {
     :IEEE {
         :tag :IEEE
         :value 0
@@ -2997,7 +2981,7 @@
 }))
 
 
-(local OverflowModes (mkEnum :OverflowModes :value {
+(local OverflowModes (mk-enum :OverflowModes :value {
     :WRAP {
         :tag :WRAP
         :value 0
@@ -3029,7 +3013,7 @@
 }))
 
 
-(local LinkageType (mkEnum :LinkageType :value {
+(local LinkageType (mk-enum :LinkageType :value {
     :Export {
         :tag :Export
         :value 0
@@ -3059,7 +3043,7 @@
 }))
 
 
-(local AccessQualifier (mkEnum :AccessQualifier :value {
+(local AccessQualifier (mk-enum :AccessQualifier :value {
     :ReadOnly {
         :tag :ReadOnly
         :value 0
@@ -3087,7 +3071,7 @@
 }))
 
 
-(local HostAccessQualifier (mkEnum :HostAccessQualifier :value {
+(local HostAccessQualifier (mk-enum :HostAccessQualifier :value {
     :NoneINTEL {
         :tag :NoneINTEL
         :value 0
@@ -3119,7 +3103,7 @@
 }))
 
 
-(local FunctionParameterAttribute (mkEnum :FunctionParameterAttribute :value {
+(local FunctionParameterAttribute (mk-enum :FunctionParameterAttribute :value {
     :Zext {
         :tag :Zext
         :value 0
@@ -3195,7 +3179,7 @@
 }))
 
 
-(local Decoration (mkEnum :Decoration :value {
+(local Decoration (mk-enum :Decoration :value {
     :RelaxedPrecision {
         :tag :RelaxedPrecision
         :value 0
@@ -3673,7 +3657,7 @@
             :ShaderEnqueueAMDX
         ]
         :operands [
-            {:kind :IdRef :name "Payload Type"}
+            {:kind :IdRef :name "Payload Array"}
         ]
     }
     :NodeMaxPayloadsAMDX {
@@ -3700,41 +3684,7 @@
             :ShaderEnqueueAMDX
         ]
         :operands [
-            {:kind :IdRef :name "Node Name"}
-        ]
-    }
-    :PayloadNodeBaseIndexAMDX {
-        :tag :PayloadNodeBaseIndexAMDX
-        :value 5098
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdRef :name "Base Index"}
-        ]
-    }
-    :PayloadNodeSparseArrayAMDX {
-        :tag :PayloadNodeSparseArrayAMDX
-        :value 5099
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-    }
-    :PayloadNodeArraySizeAMDX {
-        :tag :PayloadNodeArraySizeAMDX
-        :value 5100
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdRef :name "Array Size"}
-        ]
-    }
-    :PayloadDispatchIndirectAMDX {
-        :tag :PayloadDispatchIndirectAMDX
-        :value 5105
-        :capabilities [
-            :ShaderEnqueueAMDX
+            {:kind :LiteralString :name "Node Name"}
         ]
     }
     :OverrideCoverageNV {
@@ -3819,6 +3769,7 @@
             :SPV_KHR_fragment_shader_barycentric
         ]
         :capabilities [
+            :FragmentBarycentricNV
             :FragmentBarycentricKHR
         ]
     }
@@ -3826,9 +3777,6 @@
         :tag :NonUniform
         :value 5300
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :ShaderNonUniform
         ]
@@ -3974,9 +3922,6 @@
         :tag :CounterBuffer
         :value 5634
         :version { :major 1 :minor 4 }
-        :extensions [
-            :SPV_GOOGLE_hlsl_functionality1
-        ]
         :operands [
             {:kind :IdRef :name "Counter Buffer"}
         ]
@@ -3985,9 +3930,6 @@
         :tag :UserSemantic
         :value 5635
         :version { :major 1 :minor 4 }
-        :extensions [
-            :SPV_GOOGLE_hlsl_functionality1
-        ]
         :operands [
             {:kind :LiteralString :name "Semantic"}
         ]
@@ -4532,8 +4474,16 @@
     }
 }))
 
+(set Decoration.enumerants.PerPrimitiveNV Decoration.enumerants.PerPrimitiveEXT)
+(set Decoration.enumerants.PerVertexNV Decoration.enumerants.PerVertexKHR)
+(set Decoration.enumerants.NonUniformEXT Decoration.enumerants.NonUniform)
+(set Decoration.enumerants.RestrictPointerEXT Decoration.enumerants.RestrictPointer)
+(set Decoration.enumerants.AliasedPointerEXT Decoration.enumerants.AliasedPointer)
+(set Decoration.enumerants.HlslCounterBufferGOOGLE Decoration.enumerants.CounterBuffer)
+(set Decoration.enumerants.HlslSemanticGOOGLE Decoration.enumerants.UserSemantic)
 
-(local BuiltIn (mkEnum :BuiltIn :value {
+
+(local BuiltIn (mk-enum :BuiltIn :value {
     :Position {
         :tag :Position
         :value 0
@@ -4908,9 +4858,6 @@
         :tag :SubgroupEqMask
         :value 4416
         :version { :major 1 :minor 3 }
-        :extensions [
-            :SPV_KHR_shader_ballot
-        ]
         :capabilities [
             :SubgroupBallotKHR
             :GroupNonUniformBallot
@@ -4920,9 +4867,6 @@
         :tag :SubgroupGeMask
         :value 4417
         :version { :major 1 :minor 3 }
-        :extensions [
-            :SPV_KHR_shader_ballot
-        ]
         :capabilities [
             :SubgroupBallotKHR
             :GroupNonUniformBallot
@@ -4932,9 +4876,6 @@
         :tag :SubgroupGtMask
         :value 4418
         :version { :major 1 :minor 3 }
-        :extensions [
-            :SPV_KHR_shader_ballot
-        ]
         :capabilities [
             :SubgroupBallotKHR
             :GroupNonUniformBallot
@@ -4944,9 +4885,6 @@
         :tag :SubgroupLeMask
         :value 4419
         :version { :major 1 :minor 3 }
-        :extensions [
-            :SPV_KHR_shader_ballot
-        ]
         :capabilities [
             :SubgroupBallotKHR
             :GroupNonUniformBallot
@@ -4956,9 +4894,6 @@
         :tag :SubgroupLtMask
         :value 4420
         :version { :major 1 :minor 3 }
-        :extensions [
-            :SPV_KHR_shader_ballot
-        ]
         :capabilities [
             :SubgroupBallotKHR
             :GroupNonUniformBallot
@@ -5102,8 +5037,8 @@
             :StencilExportEXT
         ]
     }
-    :RemainingRecursionLevelsAMDX {
-        :tag :RemainingRecursionLevelsAMDX
+    :CoalescedInputCountAMDX {
+        :tag :CoalescedInputCountAMDX
         :value 5021
         :capabilities [
             :ShaderEnqueueAMDX
@@ -5270,6 +5205,7 @@
             :SPV_KHR_fragment_shader_barycentric
         ]
         :capabilities [
+            :FragmentBarycentricNV
             :FragmentBarycentricKHR
         ]
     }
@@ -5281,6 +5217,7 @@
             :SPV_KHR_fragment_shader_barycentric
         ]
         :capabilities [
+            :FragmentBarycentricNV
             :FragmentBarycentricKHR
         ]
     }
@@ -5293,6 +5230,7 @@
         ]
         :capabilities [
             :FragmentDensityEXT
+            :ShadingRateNV
         ]
     }
     :FragInvocationCountEXT {
@@ -5304,6 +5242,7 @@
         ]
         :capabilities [
             :FragmentDensityEXT
+            :ShadingRateNV
         ]
     }
     :PrimitivePointIndicesEXT {
@@ -5619,8 +5558,31 @@
     }
 }))
 
+(set BuiltIn.enumerants.SubgroupEqMaskKHR BuiltIn.enumerants.SubgroupEqMask)
+(set BuiltIn.enumerants.SubgroupGeMaskKHR BuiltIn.enumerants.SubgroupGeMask)
+(set BuiltIn.enumerants.SubgroupGtMaskKHR BuiltIn.enumerants.SubgroupGtMask)
+(set BuiltIn.enumerants.SubgroupLeMaskKHR BuiltIn.enumerants.SubgroupLeMask)
+(set BuiltIn.enumerants.SubgroupLtMaskKHR BuiltIn.enumerants.SubgroupLtMask)
+(set BuiltIn.enumerants.BaryCoordNV BuiltIn.enumerants.BaryCoordKHR)
+(set BuiltIn.enumerants.BaryCoordNoPerspNV BuiltIn.enumerants.BaryCoordNoPerspKHR)
+(set BuiltIn.enumerants.FragmentSizeNV BuiltIn.enumerants.FragSizeEXT)
+(set BuiltIn.enumerants.InvocationsPerPixelNV BuiltIn.enumerants.FragInvocationCountEXT)
+(set BuiltIn.enumerants.LaunchIdNV BuiltIn.enumerants.LaunchIdKHR)
+(set BuiltIn.enumerants.LaunchSizeNV BuiltIn.enumerants.LaunchSizeKHR)
+(set BuiltIn.enumerants.WorldRayOriginNV BuiltIn.enumerants.WorldRayOriginKHR)
+(set BuiltIn.enumerants.WorldRayDirectionNV BuiltIn.enumerants.WorldRayDirectionKHR)
+(set BuiltIn.enumerants.ObjectRayOriginNV BuiltIn.enumerants.ObjectRayOriginKHR)
+(set BuiltIn.enumerants.ObjectRayDirectionNV BuiltIn.enumerants.ObjectRayDirectionKHR)
+(set BuiltIn.enumerants.RayTminNV BuiltIn.enumerants.RayTminKHR)
+(set BuiltIn.enumerants.RayTmaxNV BuiltIn.enumerants.RayTmaxKHR)
+(set BuiltIn.enumerants.InstanceCustomIndexNV BuiltIn.enumerants.InstanceCustomIndexKHR)
+(set BuiltIn.enumerants.ObjectToWorldNV BuiltIn.enumerants.ObjectToWorldKHR)
+(set BuiltIn.enumerants.WorldToObjectNV BuiltIn.enumerants.WorldToObjectKHR)
+(set BuiltIn.enumerants.HitKindNV BuiltIn.enumerants.HitKindKHR)
+(set BuiltIn.enumerants.IncomingRayFlagsNV BuiltIn.enumerants.IncomingRayFlagsKHR)
 
-(local Scope (mkEnum :Scope :value {
+
+(local Scope (mk-enum :Scope :value {
     :CrossDevice {
         :tag :CrossDevice
         :value 0
@@ -5663,8 +5625,10 @@
     }
 }))
 
+(set Scope.enumerants.QueueFamilyKHR Scope.enumerants.QueueFamily)
 
-(local GroupOperation (mkEnum :GroupOperation :value {
+
+(local GroupOperation (mk-enum :GroupOperation :value {
     :Reduce {
         :tag :Reduce
         :value 0
@@ -5736,7 +5700,7 @@
 }))
 
 
-(local KernelEnqueueFlags (mkEnum :KernelEnqueueFlags :value {
+(local KernelEnqueueFlags (mk-enum :KernelEnqueueFlags :value {
     :NoWait {
         :tag :NoWait
         :value 0
@@ -5764,7 +5728,7 @@
 }))
 
 
-(local Capability (mkEnum :Capability :value {
+(local Capability (mk-enum :Capability :value {
     :Matrix {
         :tag :Matrix
         :value 0
@@ -6308,13 +6272,6 @@
             :SPV_EXT_shader_tile_image
         ]
     }
-    :CooperativeMatrixLayoutsARM {
-        :tag :CooperativeMatrixLayoutsARM
-        :value 4201
-        :extensions [
-            :SPV_ARM_cooperative_matrix_layouts
-        ]
-    }
     :FragmentShadingRateKHR {
         :tag :FragmentShadingRateKHR
         :value 4422
@@ -6397,6 +6354,7 @@
         ]
         :capabilities [
             :StorageBuffer16BitAccess
+            :StorageUniformBufferBlock16
         ]
     }
     :StoragePushConstant16 {
@@ -6555,13 +6513,6 @@
         ]
         :capabilities [
             :Shader
-        ]
-    }
-    :UntypedPointersKHR {
-        :tag :UntypedPointersKHR
-        :value 4473
-        :extensions [
-            :SPV_KHR_untyped_pointers
         ]
     }
     :RayTraversalPrimitiveCullingKHR {
@@ -6723,7 +6674,6 @@
         :value 5254
         :extensions [
             :SPV_EXT_shader_viewport_index_layer
-            :SPV_NV_viewport_array2
         ]
         :capabilities [
             :MultiViewport
@@ -6736,7 +6686,7 @@
             :SPV_NV_viewport_array2
         ]
         :capabilities [
-            :ShaderViewportIndexLayerEXT
+            :ShaderViewportIndexLayerNV
         ]
     }
     :ShaderStereoViewNV {
@@ -6804,15 +6754,11 @@
             :SPV_KHR_fragment_shader_barycentric
         ]
     }
-    :ComputeDerivativeGroupQuadsKHR {
-        :tag :ComputeDerivativeGroupQuadsKHR
+    :ComputeDerivativeGroupQuadsNV {
+        :tag :ComputeDerivativeGroupQuadsNV
         :value 5288
         :extensions [
             :SPV_NV_compute_shader_derivatives
-            :SPV_KHR_compute_shader_derivatives
-        ]
-        :capabilities [
-            :Shader
         ]
     }
     :FragmentDensityEXT {
@@ -6837,9 +6783,6 @@
         :tag :ShaderNonUniform
         :value 5301
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :Shader
         ]
@@ -6848,9 +6791,6 @@
         :tag :RuntimeDescriptorArray
         :value 5302
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :Shader
         ]
@@ -6859,9 +6799,6 @@
         :tag :InputAttachmentArrayDynamicIndexing
         :value 5303
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :InputAttachment
         ]
@@ -6870,9 +6807,6 @@
         :tag :UniformTexelBufferArrayDynamicIndexing
         :value 5304
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :SampledBuffer
         ]
@@ -6881,9 +6815,6 @@
         :tag :StorageTexelBufferArrayDynamicIndexing
         :value 5305
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :ImageBuffer
         ]
@@ -6892,9 +6823,6 @@
         :tag :UniformBufferArrayNonUniformIndexing
         :value 5306
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :ShaderNonUniform
         ]
@@ -6903,9 +6831,6 @@
         :tag :SampledImageArrayNonUniformIndexing
         :value 5307
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :ShaderNonUniform
         ]
@@ -6914,9 +6839,6 @@
         :tag :StorageBufferArrayNonUniformIndexing
         :value 5308
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :ShaderNonUniform
         ]
@@ -6925,9 +6847,6 @@
         :tag :StorageImageArrayNonUniformIndexing
         :value 5309
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :ShaderNonUniform
         ]
@@ -6936,9 +6855,6 @@
         :tag :InputAttachmentArrayNonUniformIndexing
         :value 5310
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :InputAttachment
             :ShaderNonUniform
@@ -6948,9 +6864,6 @@
         :tag :UniformTexelBufferArrayNonUniformIndexing
         :value 5311
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :SampledBuffer
             :ShaderNonUniform
@@ -6960,9 +6873,6 @@
         :tag :StorageTexelBufferArrayNonUniformIndexing
         :value 5312
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_EXT_descriptor_indexing
-        ]
         :capabilities [
             :ImageBuffer
             :ShaderNonUniform
@@ -7002,17 +6912,11 @@
         :tag :VulkanMemoryModel
         :value 5345
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
     }
     :VulkanMemoryModelDeviceScope {
         :tag :VulkanMemoryModelDeviceScope
         :value 5346
         :version { :major 1 :minor 5 }
-        :extensions [
-            :SPV_KHR_vulkan_memory_model
-        ]
     }
     :PhysicalStorageBufferAddresses {
         :tag :PhysicalStorageBufferAddresses
@@ -7026,15 +6930,11 @@
             :Shader
         ]
     }
-    :ComputeDerivativeGroupLinearKHR {
-        :tag :ComputeDerivativeGroupLinearKHR
+    :ComputeDerivativeGroupLinearNV {
+        :tag :ComputeDerivativeGroupLinearNV
         :value 5350
         :extensions [
             :SPV_NV_compute_shader_derivatives
-            :SPV_KHR_compute_shader_derivatives
-        ]
-        :capabilities [
-            :Shader
         ]
     }
     :RayTracingProvisionalKHR {
@@ -7101,9 +7001,6 @@
         :tag :DemoteToHelperInvocation
         :value 5379
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_EXT_demote_to_helper_invocation
-        ]
         :capabilities [
             :Shader
         ]
@@ -7178,48 +7075,6 @@
         :value 5414
         :extensions [
             :SPV_NV_raw_access_chains
-        ]
-    }
-    :CooperativeMatrixReductionsNV {
-        :tag :CooperativeMatrixReductionsNV
-        :value 5430
-        :extensions [
-            :SPV_NV_cooperative_matrix2
-        ]
-    }
-    :CooperativeMatrixConversionsNV {
-        :tag :CooperativeMatrixConversionsNV
-        :value 5431
-        :extensions [
-            :SPV_NV_cooperative_matrix2
-        ]
-    }
-    :CooperativeMatrixPerElementOperationsNV {
-        :tag :CooperativeMatrixPerElementOperationsNV
-        :value 5432
-        :extensions [
-            :SPV_NV_cooperative_matrix2
-        ]
-    }
-    :CooperativeMatrixTensorAddressingNV {
-        :tag :CooperativeMatrixTensorAddressingNV
-        :value 5433
-        :extensions [
-            :SPV_NV_cooperative_matrix2
-        ]
-    }
-    :CooperativeMatrixBlockLoadsNV {
-        :tag :CooperativeMatrixBlockLoadsNV
-        :value 5434
-        :extensions [
-            :SPV_NV_cooperative_matrix2
-        ]
-    }
-    :TensorAddressingNV {
-        :tag :TensorAddressingNV
-        :value 5439
-        :extensions [
-            :SPV_NV_tensor_addressing
         ]
     }
     :SubgroupShuffleINTEL {
@@ -7529,17 +7384,11 @@
         :tag :DotProductInputAll
         :value 6016
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
     }
     :DotProductInput4x8Bit {
         :tag :DotProductInput4x8Bit
         :value 6017
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
         :capabilities [
             :Int8
         ]
@@ -7548,17 +7397,11 @@
         :tag :DotProductInput4x8BitPacked
         :value 6018
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
     }
     :DotProduct {
         :tag :DotProduct
         :value 6019
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
     }
     :RayCullMaskKHR {
         :tag :RayCullMaskKHR
@@ -7572,13 +7415,6 @@
         :value 6022
         :extensions [
             :SPV_KHR_cooperative_matrix
-        ]
-    }
-    :ReplicatedCompositesEXT {
-        :tag :ReplicatedCompositesEXT
-        :value 6024
-        :extensions [
-            :SPV_EXT_replicated_composites
         ]
     }
     :BitInstructions {
@@ -7626,11 +7462,10 @@
             :SPV_INTEL_long_composites
         ]
     }
-    :OptNoneEXT {
-        :tag :OptNoneEXT
+    :OptNoneINTEL {
+        :tag :OptNoneINTEL
         :value 6094
         :extensions [
-            :SPV_EXT_optnone
             :SPV_INTEL_optnone
         ]
     }
@@ -7660,13 +7495,6 @@
         :value 6141
         :extensions [
             :SPV_INTEL_split_barrier
-        ]
-    }
-    :ArithmeticFenceEXT {
-        :tag :ArithmeticFenceEXT
-        :value 6144
-        :extensions [
-            :SPV_EXT_arithmetic_fence
         ]
     }
     :FPGAClusterAttributesV2INTEL {
@@ -7724,13 +7552,6 @@
             :SPV_INTEL_global_variable_fpga_decorations
         ]
     }
-    :SubgroupBufferPrefetchINTEL {
-        :tag :SubgroupBufferPrefetchINTEL
-        :value 6220
-        :extensions [
-            :SPV_INTEL_subgroup_buffer_prefetch
-        ]
-    }
     :GroupUniformArithmeticKHR {
         :tag :GroupUniformArithmeticKHR
         :value 6400
@@ -7761,8 +7582,34 @@
     }
 }))
 
+(set Capability.enumerants.StorageUniformBufferBlock16 Capability.enumerants.StorageBuffer16BitAccess)
+(set Capability.enumerants.StorageUniform16 Capability.enumerants.UniformAndStorageBuffer16BitAccess)
+(set Capability.enumerants.ShaderViewportIndexLayerNV Capability.enumerants.ShaderViewportIndexLayerEXT)
+(set Capability.enumerants.FragmentBarycentricNV Capability.enumerants.FragmentBarycentricKHR)
+(set Capability.enumerants.ShadingRateNV Capability.enumerants.FragmentDensityEXT)
+(set Capability.enumerants.ShaderNonUniformEXT Capability.enumerants.ShaderNonUniform)
+(set Capability.enumerants.RuntimeDescriptorArrayEXT Capability.enumerants.RuntimeDescriptorArray)
+(set Capability.enumerants.InputAttachmentArrayDynamicIndexingEXT Capability.enumerants.InputAttachmentArrayDynamicIndexing)
+(set Capability.enumerants.UniformTexelBufferArrayDynamicIndexingEXT Capability.enumerants.UniformTexelBufferArrayDynamicIndexing)
+(set Capability.enumerants.StorageTexelBufferArrayDynamicIndexingEXT Capability.enumerants.StorageTexelBufferArrayDynamicIndexing)
+(set Capability.enumerants.UniformBufferArrayNonUniformIndexingEXT Capability.enumerants.UniformBufferArrayNonUniformIndexing)
+(set Capability.enumerants.SampledImageArrayNonUniformIndexingEXT Capability.enumerants.SampledImageArrayNonUniformIndexing)
+(set Capability.enumerants.StorageBufferArrayNonUniformIndexingEXT Capability.enumerants.StorageBufferArrayNonUniformIndexing)
+(set Capability.enumerants.StorageImageArrayNonUniformIndexingEXT Capability.enumerants.StorageImageArrayNonUniformIndexing)
+(set Capability.enumerants.InputAttachmentArrayNonUniformIndexingEXT Capability.enumerants.InputAttachmentArrayNonUniformIndexing)
+(set Capability.enumerants.UniformTexelBufferArrayNonUniformIndexingEXT Capability.enumerants.UniformTexelBufferArrayNonUniformIndexing)
+(set Capability.enumerants.StorageTexelBufferArrayNonUniformIndexingEXT Capability.enumerants.StorageTexelBufferArrayNonUniformIndexing)
+(set Capability.enumerants.VulkanMemoryModelKHR Capability.enumerants.VulkanMemoryModel)
+(set Capability.enumerants.VulkanMemoryModelDeviceScopeKHR Capability.enumerants.VulkanMemoryModelDeviceScope)
+(set Capability.enumerants.PhysicalStorageBufferAddressesEXT Capability.enumerants.PhysicalStorageBufferAddresses)
+(set Capability.enumerants.DemoteToHelperInvocationEXT Capability.enumerants.DemoteToHelperInvocation)
+(set Capability.enumerants.DotProductInputAllKHR Capability.enumerants.DotProductInputAll)
+(set Capability.enumerants.DotProductInput4x8BitKHR Capability.enumerants.DotProductInput4x8Bit)
+(set Capability.enumerants.DotProductInput4x8BitPackedKHR Capability.enumerants.DotProductInput4x8BitPacked)
+(set Capability.enumerants.DotProductKHR Capability.enumerants.DotProduct)
 
-(local RayQueryIntersection (mkEnum :RayQueryIntersection :value {
+
+(local RayQueryIntersection (mk-enum :RayQueryIntersection :value {
     :RayQueryCandidateIntersectionKHR {
         :tag :RayQueryCandidateIntersectionKHR
         :value 0
@@ -7780,7 +7627,7 @@
 }))
 
 
-(local RayQueryCommittedIntersectionType (mkEnum :RayQueryCommittedIntersectionType :value {
+(local RayQueryCommittedIntersectionType (mk-enum :RayQueryCommittedIntersectionType :value {
     :RayQueryCommittedIntersectionNoneKHR {
         :tag :RayQueryCommittedIntersectionNoneKHR
         :value 0
@@ -7805,7 +7652,7 @@
 }))
 
 
-(local RayQueryCandidateIntersectionType (mkEnum :RayQueryCandidateIntersectionType :value {
+(local RayQueryCandidateIntersectionType (mk-enum :RayQueryCandidateIntersectionType :value {
     :RayQueryCandidateIntersectionTriangleKHR {
         :tag :RayQueryCandidateIntersectionTriangleKHR
         :value 0
@@ -7823,19 +7670,18 @@
 }))
 
 
-(local PackedVectorFormat (mkEnum :PackedVectorFormat :value {
+(local PackedVectorFormat (mk-enum :PackedVectorFormat :value {
     :PackedVectorFormat4x8Bit {
         :tag :PackedVectorFormat4x8Bit
         :value 0
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
     }
 }))
 
+(set PackedVectorFormat.enumerants.PackedVectorFormat4x8BitKHR PackedVectorFormat.enumerants.PackedVectorFormat4x8Bit)
 
-(local CooperativeMatrixOperands (mkEnum :CooperativeMatrixOperands :bits {
+
+(local CooperativeMatrixOperands (mk-enum :CooperativeMatrixOperands :bits {
     :MatrixASignedComponentsKHR {
         :tag :MatrixASignedComponentsKHR
         :value 1
@@ -7859,7 +7705,7 @@
 }))
 
 
-(local CooperativeMatrixLayout (mkEnum :CooperativeMatrixLayout :value {
+(local CooperativeMatrixLayout (mk-enum :CooperativeMatrixLayout :value {
     :RowMajorKHR {
         :tag :RowMajorKHR
         :value 0
@@ -7868,18 +7714,10 @@
         :tag :ColumnMajorKHR
         :value 1
     }
-    :RowBlockedInterleavedARM {
-        :tag :RowBlockedInterleavedARM
-        :value 4202
-    }
-    :ColumnBlockedInterleavedARM {
-        :tag :ColumnBlockedInterleavedARM
-        :value 4203
-    }
 }))
 
 
-(local CooperativeMatrixUse (mkEnum :CooperativeMatrixUse :value {
+(local CooperativeMatrixUse (mk-enum :CooperativeMatrixUse :value {
     :MatrixAKHR {
         :tag :MatrixAKHR
         :value 0
@@ -7895,71 +7733,7 @@
 }))
 
 
-(local CooperativeMatrixReduce (mkEnum :CooperativeMatrixReduce :bits {
-    :Row {
-        :tag :Row
-        :value 1
-    }
-    :Column {
-        :tag :Column
-        :value 2
-    }
-    :2x2 {
-        :tag :2x2
-        :value 4
-    }
-}))
-
-
-(local TensorClampMode (mkEnum :TensorClampMode :value {
-    :Undefined {
-        :tag :Undefined
-        :value 0
-    }
-    :Constant {
-        :tag :Constant
-        :value 1
-    }
-    :ClampToEdge {
-        :tag :ClampToEdge
-        :value 2
-    }
-    :Repeat {
-        :tag :Repeat
-        :value 3
-    }
-    :RepeatMirrored {
-        :tag :RepeatMirrored
-        :value 4
-    }
-}))
-
-
-(local TensorAddressingOperands (mkEnum :TensorAddressingOperands :bits {
-    :TensorView {
-        :tag :TensorView
-        :value 1
-        :capabilities [
-            :CooperativeMatrixTensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdRef}
-        ]
-    }
-    :DecodeFunc {
-        :tag :DecodeFunc
-        :value 2
-        :capabilities [
-            :CooperativeMatrixBlockLoadsNV
-        ]
-        :operands [
-            {:kind :IdRef}
-        ]
-    }
-}))
-
-
-(local InitializationModeQualifier (mkEnum :InitializationModeQualifier :value {
+(local InitializationModeQualifier (mk-enum :InitializationModeQualifier :value {
     :InitOnDeviceReprogramINTEL {
         :tag :InitOnDeviceReprogramINTEL
         :value 0
@@ -7977,7 +7751,7 @@
 }))
 
 
-(local LoadCacheControl (mkEnum :LoadCacheControl :value {
+(local LoadCacheControl (mk-enum :LoadCacheControl :value {
     :UncachedINTEL {
         :tag :UncachedINTEL
         :value 0
@@ -8016,7 +7790,7 @@
 }))
 
 
-(local StoreCacheControl (mkEnum :StoreCacheControl :value {
+(local StoreCacheControl (mk-enum :StoreCacheControl :value {
     :UncachedINTEL {
         :tag :UncachedINTEL
         :value 0
@@ -8048,7 +7822,7 @@
 }))
 
 
-(local NamedMaximumNumberOfRegisters (mkEnum :NamedMaximumNumberOfRegisters :value {
+(local NamedMaximumNumberOfRegisters (mk-enum :NamedMaximumNumberOfRegisters :value {
     :AutoINTEL {
         :tag :AutoINTEL
         :value 0
@@ -8059,11 +7833,7 @@
 }))
 
 
-(local FPEncoding (mkEnum :FPEncoding :value {
-}))
-
-
-(local SpecConstantOp (mkEnum :SpecConstantOp :value {
+(local SpecConstantOp (mk-enum :SpecConstantOp :value {
     :OpAccessChain {
         :tag :OpAccessChain
         :value 65
@@ -8594,7 +8364,7 @@
 }))
 
 
-(local Op (mkEnum :Op :op {
+(local Op (mk-enum :Op :op {
     :OpNop {
         :tag :OpNop
         :value 0
@@ -8773,7 +8543,6 @@
         :operands [
             {:kind :IdResult}
             {:kind :LiteralInteger :name "Width"}
-            {:kind :FPEncoding :quantifier :? :name "Floating Point Encoding"}
         ]
     }
     :OpTypeVector {
@@ -9171,7 +8940,6 @@
         :version { :major 1 :minor 0 }
         :capabilities [
             :Addresses
-            :UntypedPointersKHR
         ]
         :operands [
             {:kind :IdRef :name "Target"}
@@ -12933,59 +12701,6 @@
             :Shader
         ]
     }
-    :OpTypeUntypedPointerKHR {
-        :tag :OpTypeUntypedPointerKHR
-        :value 4417
-        :capabilities [
-            :UntypedPointersKHR
-        ]
-        :operands [
-            {:kind :IdResult}
-            {:kind :StorageClass}
-        ]
-    }
-    :OpUntypedVariableKHR {
-        :tag :OpUntypedVariableKHR
-        :value 4418
-        :capabilities [
-            :UntypedPointersKHR
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :StorageClass}
-            {:kind :IdRef :quantifier :? :name "Data Type"}
-            {:kind :IdRef :quantifier :? :name "Initializer"}
-        ]
-    }
-    :OpUntypedAccessChainKHR {
-        :tag :OpUntypedAccessChainKHR
-        :value 4419
-        :capabilities [
-            :UntypedPointersKHR
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Base Type"}
-            {:kind :IdRef :name "Base"}
-            {:kind :IdRef :quantifier :* :name "Indexes"}
-        ]
-    }
-    :OpUntypedInBoundsAccessChainKHR {
-        :tag :OpUntypedInBoundsAccessChainKHR
-        :value 4420
-        :capabilities [
-            :UntypedPointersKHR
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Base Type"}
-            {:kind :IdRef :name "Base"}
-            {:kind :IdRef :quantifier :* :name "Indexes"}
-        ]
-    }
     :OpSubgroupBallotKHR {
         :tag :OpSubgroupBallotKHR
         :value 4421
@@ -13014,64 +12729,6 @@
             {:kind :IdResultType}
             {:kind :IdResult}
             {:kind :IdRef :name "Value"}
-        ]
-    }
-    :OpUntypedPtrAccessChainKHR {
-        :tag :OpUntypedPtrAccessChainKHR
-        :value 4423
-        :capabilities [
-            :UntypedPointersKHR
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Base Type"}
-            {:kind :IdRef :name "Base"}
-            {:kind :IdRef :name "Element"}
-            {:kind :IdRef :quantifier :* :name "Indexes"}
-        ]
-    }
-    :OpUntypedInBoundsPtrAccessChainKHR {
-        :tag :OpUntypedInBoundsPtrAccessChainKHR
-        :value 4424
-        :capabilities [
-            :UntypedPointersKHR
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Base Type"}
-            {:kind :IdRef :name "Base"}
-            {:kind :IdRef :name "Element"}
-            {:kind :IdRef :quantifier :* :name "Indexes"}
-        ]
-    }
-    :OpUntypedArrayLengthKHR {
-        :tag :OpUntypedArrayLengthKHR
-        :value 4425
-        :capabilities [
-            :UntypedPointersKHR
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Structure"}
-            {:kind :IdRef :name "Pointer"}
-            {:kind :LiteralInteger :name "Array member"}
-        ]
-    }
-    :OpUntypedPrefetchKHR {
-        :tag :OpUntypedPrefetchKHR
-        :value 4426
-        :capabilities [
-            :UntypedPointersKHR
-        ]
-        :operands [
-            {:kind :IdRef :name "Pointer Type"}
-            {:kind :IdRef :name "Num Bytes"}
-            {:kind :IdRef :quantifier :? :name "RW"}
-            {:kind :IdRef :quantifier :? :name "Locality"}
-            {:kind :IdRef :quantifier :? :name "Cache Type"}
         ]
     }
     :OpSubgroupAllKHR {
@@ -13148,20 +12805,6 @@
             {:kind :IdResult}
             {:kind :IdRef :name "Value"}
             {:kind :IdRef :name "Index"}
-        ]
-    }
-    :OpExtInstWithForwardRefsKHR {
-        :tag :OpExtInstWithForwardRefsKHR
-        :value 4433
-        :extensions [
-            :SPV_KHR_relaxed_extended_instruction
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Set"}
-            {:kind :LiteralExtInstInteger :name "Instruction"}
-            {:kind :IdRef :quantifier :* :name "Operand 1, + Operand 2, + ..."}
         ]
     }
     :OpTraceRayKHR {
@@ -13242,9 +12885,6 @@
         :tag :OpSDot
         :value 4450
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
         :capabilities [
             :DotProduct
         ]
@@ -13260,9 +12900,6 @@
         :tag :OpUDot
         :value 4451
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
         :capabilities [
             :DotProduct
         ]
@@ -13278,9 +12915,6 @@
         :tag :OpSUDot
         :value 4452
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
         :capabilities [
             :DotProduct
         ]
@@ -13296,9 +12930,6 @@
         :tag :OpSDotAccSat
         :value 4453
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
         :capabilities [
             :DotProduct
         ]
@@ -13315,9 +12946,6 @@
         :tag :OpUDotAccSat
         :value 4454
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
         :capabilities [
             :DotProduct
         ]
@@ -13334,9 +12962,6 @@
         :tag :OpSUDotAccSat
         :value 4455
         :version { :major 1 :minor 6 }
-        :extensions [
-            :SPV_KHR_integer_dot_product
-        ]
         :capabilities [
             :DotProduct
         ]
@@ -13418,42 +13043,6 @@
             {:kind :IdResultType}
             {:kind :IdResult}
             {:kind :IdRef :name "Type"}
-        ]
-    }
-    :OpConstantCompositeReplicateEXT {
-        :tag :OpConstantCompositeReplicateEXT
-        :value 4461
-        :capabilities [
-            :ReplicatedCompositesEXT
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Value"}
-        ]
-    }
-    :OpSpecConstantCompositeReplicateEXT {
-        :tag :OpSpecConstantCompositeReplicateEXT
-        :value 4462
-        :capabilities [
-            :ReplicatedCompositesEXT
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Value"}
-        ]
-    }
-    :OpCompositeConstructReplicateEXT {
-        :tag :OpCompositeConstructReplicateEXT
-        :value 4463
-        :capabilities [
-            :ReplicatedCompositesEXT
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Value"}
         ]
     }
     :OpTypeRayQueryKHR {
@@ -13865,39 +13454,14 @@
             {:kind :IdScope :name "Scope"}
         ]
     }
-    :OpAllocateNodePayloadsAMDX {
-        :tag :OpAllocateNodePayloadsAMDX
-        :value 5074
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdScope :name "Visibility"}
-            {:kind :IdRef :name "Payload Count"}
-            {:kind :IdRef :name "Node Index"}
-        ]
-    }
-    :OpEnqueueNodePayloadsAMDX {
-        :tag :OpEnqueueNodePayloadsAMDX
+    :OpFinalizeNodePayloadsAMDX {
+        :tag :OpFinalizeNodePayloadsAMDX
         :value 5075
         :capabilities [
             :ShaderEnqueueAMDX
         ]
         :operands [
             {:kind :IdRef :name "Payload Array"}
-        ]
-    }
-    :OpTypeNodePayloadArrayAMDX {
-        :tag :OpTypeNodePayloadArrayAMDX
-        :value 5076
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdResult}
-            {:kind :IdRef :name "Payload Type"}
         ]
     }
     :OpFinishWritingNodePayloadAMDX {
@@ -13912,51 +13476,17 @@
             {:kind :IdRef :name "Payload"}
         ]
     }
-    :OpNodePayloadArrayLengthAMDX {
-        :tag :OpNodePayloadArrayLengthAMDX
+    :OpInitializeNodePayloadsAMDX {
+        :tag :OpInitializeNodePayloadsAMDX
         :value 5090
         :capabilities [
             :ShaderEnqueueAMDX
         ]
         :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
             {:kind :IdRef :name "Payload Array"}
-        ]
-    }
-    :OpIsNodePayloadValidAMDX {
-        :tag :OpIsNodePayloadValidAMDX
-        :value 5101
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Payload Type"}
+            {:kind :IdScope :name "Visibility"}
+            {:kind :IdRef :name "Payload Count"}
             {:kind :IdRef :name "Node Index"}
-        ]
-    }
-    :OpConstantStringAMDX {
-        :tag :OpConstantStringAMDX
-        :value 5103
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdResult}
-            {:kind :LiteralString :name "Literal String"}
-        ]
-    }
-    :OpSpecConstantStringAMDX {
-        :tag :OpSpecConstantStringAMDX
-        :value 5104
-        :capabilities [
-            :ShaderEnqueueAMDX
-        ]
-        :operands [
-            {:kind :IdResult}
-            {:kind :LiteralString :name "Literal String"}
         ]
     }
     :OpGroupNonUniformQuadAllKHR {
@@ -14461,18 +13991,6 @@
             {:kind :ImageOperands :quantifier :?}
         ]
     }
-    :OpCooperativeMatrixConvertNV {
-        :tag :OpCooperativeMatrixConvertNV
-        :value 5293
-        :capabilities [
-            :CooperativeMatrixConversionsNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Matrix"}
-        ]
-    }
     :OpEmitMeshTasksEXT {
         :tag :OpEmitMeshTasksEXT
         :value 5294
@@ -14819,189 +14337,6 @@
             :FragmentShaderShadingRateInterlockEXT
         ]
     }
-    :OpCooperativeMatrixReduceNV {
-        :tag :OpCooperativeMatrixReduceNV
-        :value 5366
-        :capabilities [
-            :CooperativeMatrixReductionsNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Matrix"}
-            {:kind :CooperativeMatrixReduce :name "Reduce"}
-            {:kind :IdRef :name "CombineFunc"}
-        ]
-    }
-    :OpCooperativeMatrixLoadTensorNV {
-        :tag :OpCooperativeMatrixLoadTensorNV
-        :value 5367
-        :capabilities [
-            :CooperativeMatrixTensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Pointer"}
-            {:kind :IdRef :name "Object"}
-            {:kind :IdRef :name "TensorLayout"}
-            {:kind :MemoryAccess :name "Memory Operand"}
-            {:kind :TensorAddressingOperands :name "Tensor Addressing Operands"}
-        ]
-    }
-    :OpCooperativeMatrixStoreTensorNV {
-        :tag :OpCooperativeMatrixStoreTensorNV
-        :value 5368
-        :capabilities [
-            :CooperativeMatrixTensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdRef :name "Pointer"}
-            {:kind :IdRef :name "Object"}
-            {:kind :IdRef :name "TensorLayout"}
-            {:kind :MemoryAccess :name "Memory Operand"}
-            {:kind :TensorAddressingOperands :name "Tensor Addressing Operands"}
-        ]
-    }
-    :OpCooperativeMatrixPerElementOpNV {
-        :tag :OpCooperativeMatrixPerElementOpNV
-        :value 5369
-        :capabilities [
-            :CooperativeMatrixPerElementOperationsNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Matrix"}
-            {:kind :IdRef :name "Func"}
-            {:kind :IdRef :quantifier :* :name "Operands"}
-        ]
-    }
-    :OpTypeTensorLayoutNV {
-        :tag :OpTypeTensorLayoutNV
-        :value 5370
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResult}
-            {:kind :IdRef :name "Dim"}
-            {:kind :IdRef :name "ClampMode"}
-        ]
-    }
-    :OpTypeTensorViewNV {
-        :tag :OpTypeTensorViewNV
-        :value 5371
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResult}
-            {:kind :IdRef :name "Dim"}
-            {:kind :IdRef :name "HasDimensions"}
-            {:kind :IdRef :quantifier :* :name "p"}
-        ]
-    }
-    :OpCreateTensorLayoutNV {
-        :tag :OpCreateTensorLayoutNV
-        :value 5372
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-        ]
-    }
-    :OpTensorLayoutSetDimensionNV {
-        :tag :OpTensorLayoutSetDimensionNV
-        :value 5373
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "TensorLayout"}
-            {:kind :IdRef :quantifier :* :name "Dim"}
-        ]
-    }
-    :OpTensorLayoutSetStrideNV {
-        :tag :OpTensorLayoutSetStrideNV
-        :value 5374
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "TensorLayout"}
-            {:kind :IdRef :quantifier :* :name "Stride"}
-        ]
-    }
-    :OpTensorLayoutSliceNV {
-        :tag :OpTensorLayoutSliceNV
-        :value 5375
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "TensorLayout"}
-            {:kind :IdRef :quantifier :* :name "Operands"}
-        ]
-    }
-    :OpTensorLayoutSetClampValueNV {
-        :tag :OpTensorLayoutSetClampValueNV
-        :value 5376
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "TensorLayout"}
-            {:kind :IdRef :name "Value"}
-        ]
-    }
-    :OpCreateTensorViewNV {
-        :tag :OpCreateTensorViewNV
-        :value 5377
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-        ]
-    }
-    :OpTensorViewSetDimensionNV {
-        :tag :OpTensorViewSetDimensionNV
-        :value 5378
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "TensorView"}
-            {:kind :IdRef :quantifier :* :name "Dim"}
-        ]
-    }
-    :OpTensorViewSetStrideNV {
-        :tag :OpTensorViewSetStrideNV
-        :value 5379
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "TensorView"}
-            {:kind :IdRef :quantifier :* :name "Stride"}
-        ]
-    }
     :OpDemoteToHelperInvocation {
         :tag :OpDemoteToHelperInvocation
         :value 5380
@@ -15017,52 +14352,11 @@
             :SPV_EXT_demote_to_helper_invocation
         ]
         :capabilities [
-            :DemoteToHelperInvocation
+            :DemoteToHelperInvocationEXT
         ]
         :operands [
             {:kind :IdResultType}
             {:kind :IdResult}
-        ]
-    }
-    :OpTensorViewSetClipNV {
-        :tag :OpTensorViewSetClipNV
-        :value 5382
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "TensorView"}
-            {:kind :IdRef :name "ClipRowOffset"}
-            {:kind :IdRef :name "ClipRowSpan"}
-            {:kind :IdRef :name "ClipColOffset"}
-            {:kind :IdRef :name "ClipColSpan"}
-        ]
-    }
-    :OpTensorLayoutSetBlockSizeNV {
-        :tag :OpTensorLayoutSetBlockSizeNV
-        :value 5384
-        :capabilities [
-            :TensorAddressingNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "TensorLayout"}
-            {:kind :IdRef :quantifier :* :name "BlockSize"}
-        ]
-    }
-    :OpCooperativeMatrixTransposeNV {
-        :tag :OpCooperativeMatrixTransposeNV
-        :value 5390
-        :capabilities [
-            :CooperativeMatrixConversionsNV
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Matrix"}
         ]
     }
     :OpConvertUToImageNV {
@@ -18620,30 +17914,6 @@
             {:kind :IdMemorySemantics :name "Semantics"}
         ]
     }
-    :OpArithmeticFenceEXT {
-        :tag :OpArithmeticFenceEXT
-        :value 6145
-        :capabilities [
-            :ArithmeticFenceEXT
-        ]
-        :operands [
-            {:kind :IdResultType}
-            {:kind :IdResult}
-            {:kind :IdRef :name "Target"}
-        ]
-    }
-    :OpSubgroupBlockPrefetchINTEL {
-        :tag :OpSubgroupBlockPrefetchINTEL
-        :value 6221
-        :capabilities [
-            :SubgroupBufferPrefetchINTEL
-        ]
-        :operands [
-            {:kind :IdRef :name "Ptr"}
-            {:kind :IdRef :name "NumBytes"}
-            {:kind :MemoryAccess :quantifier :?}
-        ]
-    }
     :OpGroupIMulKHR {
         :tag :OpGroupIMulKHR
         :value 6401
@@ -18786,8 +18056,20 @@
     }
 }))
 
+(set Op.enumerants.OpSDotKHR Op.enumerants.OpSDot)
+(set Op.enumerants.OpUDotKHR Op.enumerants.OpUDot)
+(set Op.enumerants.OpSUDotKHR Op.enumerants.OpSUDot)
+(set Op.enumerants.OpSDotAccSatKHR Op.enumerants.OpSDotAccSat)
+(set Op.enumerants.OpUDotAccSatKHR Op.enumerants.OpUDotAccSat)
+(set Op.enumerants.OpSUDotAccSatKHR Op.enumerants.OpSUDotAccSat)
+(set Op.enumerants.OpReportIntersectionNV Op.enumerants.OpReportIntersectionKHR)
+(set Op.enumerants.OpTypeAccelerationStructureNV Op.enumerants.OpTypeAccelerationStructureKHR)
+(set Op.enumerants.OpDemoteToHelperInvocationEXT Op.enumerants.OpDemoteToHelperInvocation)
+(set Op.enumerants.OpDecorateStringGOOGLE Op.enumerants.OpDecorateString)
+(set Op.enumerants.OpMemberDecorateStringGOOGLE Op.enumerants.OpMemberDecorateString)
 
-(local ExtGLSL (mkEnum :ExtGLSL :ext {
+
+(local ExtGLSL (mk-enum :ExtGLSL :ext {
     :Round {
         :tag :Round
         :value 1
@@ -19458,21 +18740,17 @@
     : CooperativeMatrixOperands
     : CooperativeMatrixLayout
     : CooperativeMatrixUse
-    : CooperativeMatrixReduce
-    : TensorClampMode
-    : TensorAddressingOperands
     : InitializationModeQualifier
     : LoadCacheControl
     : StoreCacheControl
     : NamedMaximumNumberOfRegisters
-    : FPEncoding
     : Op
     : SpecConstantOp
     :LiteralSpecConstantOpInteger SpecConstantOp
     : ExtGLSL
-    : magicNumber
-    : majorVersion
-    : minorVersion
+    : magic-number
+    : major-version
+    : minor-version
     : version
     : revision
 }

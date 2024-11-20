@@ -17,7 +17,7 @@
 
 (var* outFragColor (vec4 f32) Output (Location 0))
 
-(uniform (0 1) topLevelAS acceleration-structure)
+(uniform (0 1) topLevelAS accelerationStructure)
 
 (local ambient 0.1)
 
@@ -27,12 +27,12 @@
   (local N (normalize inNormal))
   (local L (normalize inLightVec))
   (local V (normalize inViewVec))
-  (local R (normalize (negate (reflect L N))))
+  (local R (normalize (- (reflect L N))))
 
   (local diffuse (* inColor (max ambient (dot N L))))
 
   (set* outFragColor ((vec4 f32) diffuse 1.0))
 
-  (var* rayQuery ray-query)
+  (var* rq rayQuery)
 
 )

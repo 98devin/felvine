@@ -7,11 +7,7 @@ from itertools import takewhile
 from typing import Dict, List, Literal, Optional, Set, Tuple
 
 def intro():
-    return f"""
-
-(local {{: mk-enum}} (include :base))
-
-"""
+    return f"""(local {{: mkEnum}} (include :base))"""
 
 @dataclass
 class OperandDesc:
@@ -279,7 +275,7 @@ def emit_enum_case(enumerant: EnumerantDesc):
 
 def emit_enum_datatype(enum: EnumDesc, enum_kind: str):
 
-    emit(f"(local {enum.name} (mk-enum :{enum.name} :{enum_kind}" " {")
+    emit(f"(local {enum.name} (mkEnum :{enum.name} :{enum_kind}" " {")
     indent()
     
     for enumerant in enum.enumerants:
@@ -443,9 +439,9 @@ def emit_spirv_types(grammar, *, glsl_grammar=None):
     if glsl_grammar is not None:
         emit(": ExtGLSL")
 
-    emit(": magic-number")
-    emit(": major-version")
-    emit(": minor-version")
+    emit(": magicNumber")
+    emit(": majorVersion")
+    emit(": minorVersion")
     emit(": version")
     emit(": revision")
 
@@ -455,13 +451,13 @@ def emit_spirv_types(grammar, *, glsl_grammar=None):
 
 def emit_spirv_constants(grammar):
     magic_number = grammar["magic_number"]
-    emit(f"(local magic-number {magic_number})")
+    emit(f"(local magicNumber {magic_number})")
 
     major_version = grammar["major_version"]
-    emit(f"(local major-version {major_version})")
+    emit(f"(local majorVersion {major_version})")
 
     minor_version = grammar["minor_version"]
-    emit(f"(local minor-version {minor_version})")
+    emit(f"(local minorVersion {minor_version})")
 
     emit(f"(local version {{ :major {major_version} :minor {minor_version} }})")
 

@@ -53,7 +53,7 @@
   pointer [*P { x f32 y f32 }]
 })
 
-(ref-types*
+(refTypes*
   Node { left Node right Node content f32 }
   Tree { root Node all-children Node })
 
@@ -65,7 +65,7 @@
   positions [(vec3 f32)]
 }])
 
-(push-constant CameraData { 
+(pushConstant CameraData { 
   position (vec3 f32)
   transform ((mat4x3 f32) RowMajor)
   inv-transform [2 2 (mat3x4 f32)]
@@ -73,14 +73,14 @@
 })
 
 
-(uniform (0 1) MaterialTextures [1024 (sampled-image :2D)])
+(uniform (0 1) MaterialTextures [1024 (sampledImage :2D)])
 
 
 (var* Color (vec4 f32) StorageClass.Output
   (Decoration.Location 0))
 
 
-(fn test-operations [x y] 
+(fn testOperations [x y] 
   (+ (- x)   ; __unm
      (+ x y) ; __add
      (- x y) ; __sub
@@ -92,39 +92,39 @@
     ))
 
 
-(fn* test-number-operations f32 [(s8 i8) (s16 i16) (s32 i32) (s64 i64)
+(fn* testNumberOperations f32 [(s8 i8) (s16 i16) (s32 i32) (s64 i64)
                             (w8 u8) (w16 u16) (w32 u32) (w64 u64)
                             (f f32) (d f64)]
   (local args [s8 s16 s32 s64 w8 w16 w32 w64 f d])
   (var* total f32 := 0)
   (each [_ x (ipairs args)]
-    (set* total (+ total (test-operations x x))))
+    (set* total (+ total (testOperations x x))))
   (deref total))
 
 
-(fn* test-vector-projections f32 [(v (vec4 f32))]
-  (local single-component 
+(fn* testVectorProjections f32 [(v (vec4 f32))]
+  (local singleComponent 
     (+ (+ v.x v.y v.z v.w)
      (+ v.r v.g v.b v.a)
      (+ v.u v.v v.s v.t)
      (+ v.0 v.1 v.2 v.3)
      (+ (v 0) (v 1) (v 2) (v 3))))
-  (local two-component
+  (local twoComponent
     ((+ v.xy v.yz v.zw v.wx) 1))
-  (local three-component
+  (local threeComponent
     ((+ v.xxx v.ggg v.sss v.333) 2))
-  (local four-component
+  (local fourComponent
     ((+ v.wzwz v.abgr v.stuv v.0213) 3))
-  (+ single-component two-component three-component four-component))
+  (+ singleComponent twoComponent threeComponent fourComponent))
 
-(fn* test-conditional-operations f32 [(a i32) (b i32) (c f32) (d f32) (e (vec2 i32)) (f (vec2 i32))]
+(fn* testConditionalOperations f32 [(a i32) (b i32) (c f32) (d f32) (e (vec2 i32)) (f (vec2 i32))]
   (if* (any? (lt? e f)) (f32 e.0)
        (all? (gt? e f)) (f32 f.0)
        (gte? a b) (f32 a)
        (neq? c d) (if* (lte? a c) c d)
        (any? (eq? b e)) c d))
 
-(fn* test-loop-operations f32 [(a i32) (b i32)]
+(fn* testLoopOperations f32 [(a i32) (b i32)]
   (var* j i32 := 0)
 
   (while* (lt? j b)
@@ -133,22 +133,27 @@
   (for* [(i i32) j 10]
     (set* j (+ j i)))
 
+
+  (for< [(i i32) j 10]
+    (set* j (- j i)))
+
+
   (for* [(i i32) j (* 2 j) 2]
     (set* j (+ j i)))
 
   j)
 
-(fn* test-constant-propagation i32 [(a i32)]
+(fn* testConstantPropagation i32 [(a i32)]
   (+ a (+
-    (test-operations (i32 10) (i32 2))
-    (test-operations (u32 10) (u32 2))
-    (test-operations (f32 10) (f32 2))
-    ((test-operations ((vec3 f32) 10) ((vec3 f32) 2)) 0)
-    ((test-operations ((vec3 u32) 10) ((vec3 u32) 2)) 0)
-    (test-operations (u64 10) (u64 2)))))
+    (testOperations (i32 10) (i32 2))
+    (testOperations (u32 10) (u32 2))
+    (testOperations (f32 10) (f32 2))
+    ((testOperations ((vec3 f32) 10) ((vec3 f32) 2)) 0)
+    ((testOperations ((vec3 u32) 10) ((vec3 u32) 2)) 0)
+    (testOperations (u64 10) (u64 2)))))
 
 
-(fn* test-matrix-operations (mat3 f32) [(m (mat3 f32))]
+(fn* testMatrixOperations (mat3 f32) [(m (mat3 f32))]
   (local det (determinant (invert m)))
   (local v (m 0))
   (local (vwhole vfrac) (modf v))
@@ -156,202 +161,202 @@
   (* m (+ det w)))
 
 
-(fn* test-subgroup-operations f32 [(a f32)]
-  (local add-total (subgroup.add a))
-  (local add-inclusive (subgroup.add a :InclusiveScan))
-  (local add-exclusive (subgroup.add a :ExclusiveScan))
-  (local add-clustered (subgroup.add a :ClusteredReduce 4))
+(fn* testSubgroupOperations f32 [(a f32)]
+  (local addTotal (subgroup.add a))
+  (local addInclusive (subgroup.add a :InclusiveScan))
+  (local addExclusive (subgroup.add a :ExclusiveScan))
+  (local addClustered (subgroup.add a :ClusteredReduce 4))
 
-  (+ add-total
-     add-inclusive
-     add-exclusive
-     add-clustered))
+  (+ addTotal
+     addInclusive
+     addExclusive
+     addClustered))
 
 
-(local image-1D         (sampled-image :1D          f32))
-(local image-2D         (sampled-image :2D          f32))
-(local image-3D         (sampled-image :3D          f32))
-(local image-Cube       (sampled-image :Cube        f32))
-(local image-1D-array   (sampled-image :1D   :array f32))
-(local image-2D-array   (sampled-image :2D   :array f32))
-(local image-Cube-array (sampled-image :Cube :array f32))
+(local image1D        (sampledImage :1D          f32))
+(local image2D        (sampledImage :2D          f32))
+(local image3D        (sampledImage :3D          f32))
+(local imageCube      (sampledImage :Cube        f32))
+(local image1DArray   (sampledImage :1D   :array f32))
+(local image2DArray   (sampledImage :2D   :array f32))
+(local imageCubeArray (sampledImage :Cube :array f32))
 
-(local storage-image-1D         (image :storage :1D          f32 :Rgba32f))
-(local storage-image-2D         (image :storage :2D          f32 :Rgba32f))
-(local storage-image-3D         (image :storage :3D          f32 :Rgba32f))
-(local storage-image-Cube       (image :storage :Cube        f32 :Rgba32f))
-(local storage-image-1D-array   (image :storage :1D   :array f32 :Rgba32f))
-(local storage-image-2D-array   (image :storage :2D   :array f32 :Rgba32f))
-(local storage-image-Cube-array (image :storage :Cube :array f32 :Rgba32f))
+(local storageImage1D        (image :storage :1D          f32 :Rgba32f))
+(local storageImage2D        (image :storage :2D          f32 :Rgba32f))
+(local storageImage3D        (image :storage :3D          f32 :Rgba32f))
+(local storageImageCube      (image :storage :Cube        f32 :Rgba32f))
+(local storageImage1DArray   (image :storage :1D   :array f32 :Rgba32f))
+(local storageImage2DArray   (image :storage :2D   :array f32 :Rgba32f))
+(local storageImageCubeArray (image :storage :Cube :array f32 :Rgba32f))
 
-(local uniform-texel-buffer (image :sampled :Buffer :R32f))
-(local storage-texel-buffer (image :storage :Buffer :R32f))
+(local uniformTexelBuffer (image :sampled :Buffer :R32f))
+(local storageTexelBuffer (image :storage :Buffer :R32f))
 
-(fn* test-image-sample-operations (vec4 f32)
-  [ (im-1D image-1D)          
-    (im-2D image-2D)          
-    (im-3D image-3D)          
-    (im-Cube image-Cube)        
-    (im-1D-array image-1D-array)    
-    (im-2D-array image-2D-array)    
-    (im-Cube-array image-Cube-array)
-    (uv-1D f32)
-    (uv-2D (vec2 f32))
-    (uv-3D (vec3 f32))
-    (uv-Cube (vec3 f32))
-    (uv-1D-array (vec2 f32))
-    (uv-2D-array (vec3 f32))
-    (uv-Cube-array (vec4 f32)) ]
+(fn* testImageSampleOperations (vec4 f32)
+  [ (im1D image1D)          
+    (im2D image2D)          
+    (im3D image3D)          
+    (imCube imageCube)        
+    (im1DArray image1DArray)    
+    (im2DArray image2DArray)    
+    (imCubeArray imageCubeArray)
+    (uv1D f32)
+    (uv2D (vec2 f32))
+    (uv3D (vec3 f32))
+    (uvCube (vec3 f32))
+    (uv1DArray (vec2 f32))
+    (uv2DArray (vec3 f32))
+    (uvCubeArray (vec4 f32)) ]
 
-  (+ (sample im-1D         uv-1D)
-     (sample im-2D         uv-2D)
-     (sample im-3D         uv-3D)
-     (sample im-Cube       uv-Cube)
-     (sample im-1D-array   uv-1D-array)
-     (sample im-2D-array   uv-2D-array)
-     (sample im-Cube-array uv-Cube-array)
+  (+ (sample im1D         uv1D)
+     (sample im2D         uv2D)
+     (sample im3D         uv3D)
+     (sample imCube       uvCube)
+     (sample im1DArray   uv1DArray)
+     (sample im2DArray   uv2DArray)
+     (sample imCubeArray uvCubeArray)
 
-     ((sample im-1D         uv-1D         :Sparse) :1)
-     ((sample im-2D         uv-2D         :Sparse) :1)
-     ((sample im-3D         uv-3D         :Sparse) :1)
-     ((sample im-Cube       uv-Cube       :Sparse) :1)
-     ((sample im-1D-array   uv-1D-array   :Sparse) :1)
-     ((sample im-2D-array   uv-2D-array   :Sparse) :1)
-     ((sample im-Cube-array uv-Cube-array :Sparse) :1)
+     ((sample im1D         uv1D         :Sparse) :1)
+     ((sample im2D         uv2D         :Sparse) :1)
+     ((sample im3D         uv3D         :Sparse) :1)
+     ((sample imCube       uvCube       :Sparse) :1)
+     ((sample im1DArray   uv1DArray   :Sparse) :1)
+     ((sample im2DArray   uv2DArray   :Sparse) :1)
+     ((sample imCubeArray uvCubeArray :Sparse) :1)
      
-     (sample im-1D         uv-1D         :Lod 0)
-     (sample im-2D         uv-2D         :Lod 0)
-     (sample im-3D         uv-3D         :Lod 0)
-     (sample im-Cube       uv-Cube       :Lod 0)
-     (sample im-1D-array   uv-1D-array   :Lod 0)
-     (sample im-2D-array   uv-2D-array   :Lod 0)
-     (sample im-Cube-array uv-Cube-array :Lod 0)
+     (sample im1D         uv1D         :Lod 0)
+     (sample im2D         uv2D         :Lod 0)
+     (sample im3D         uv3D         :Lod 0)
+     (sample imCube       uvCube       :Lod 0)
+     (sample im1DArray   uv1DArray   :Lod 0)
+     (sample im2DArray   uv2DArray   :Lod 0)
+     (sample imCubeArray uvCubeArray :Lod 0)
 
-     (sample im-1D         uv-1D         :Grad uv-1D uv-1D)
-     (sample im-2D         uv-2D         :Grad uv-2D uv-2D)
-     (sample im-3D         uv-3D         :Grad uv-3D uv-3D)
-     (sample im-Cube       uv-Cube       :Grad uv-Cube uv-Cube)
-     (sample im-1D-array   uv-1D-array   :Grad uv-1D uv-1D)
-     (sample im-2D-array   uv-2D-array   :Grad uv-2D uv-2D)
-     (sample im-Cube-array uv-Cube-array :Grad uv-Cube uv-Cube)
+     (sample im1D         uv1D         :Grad uv1D uv1D)
+     (sample im2D         uv2D         :Grad uv2D uv2D)
+     (sample im3D         uv3D         :Grad uv3D uv3D)
+     (sample imCube       uvCube       :Grad uvCube uvCube)
+     (sample im1DArray   uv1DArray   :Grad uv1D uv1D)
+     (sample im2DArray   uv2DArray   :Grad uv2D uv2D)
+     (sample imCubeArray uvCubeArray :Grad uvCube uvCube)
 
-     (sample im-1D         uv-1D-array   :Proj)
-     (sample im-2D         uv-2D-array   :Proj)
-     (sample im-3D         uv-Cube-array :Proj)
+     (sample im1D         uv1DArray   :Proj)
+     (sample im2D         uv2DArray   :Proj)
+     (sample im3D         uvCubeArray :Proj)
      
-     (sample im-1D         uv-1D-array   :Proj :Lod 0)
-     (sample im-2D         uv-2D-array   :Proj :Lod 0)
-     (sample im-3D         uv-Cube-array :Proj :Lod 0)
+     (sample im1D         uv1DArray   :Proj :Lod 0)
+     (sample im2D         uv2DArray   :Proj :Lod 0)
+     (sample im3D         uvCubeArray :Proj :Lod 0)
 
-     (sample im-1D         uv-1D-array   :Proj :Grad uv-1D uv-1D)
-     (sample im-2D         uv-2D-array   :Proj :Grad uv-2D uv-2D)
-     (sample im-3D         uv-Cube-array :Proj :Grad uv-3D uv-3D)
+     (sample im1D         uv1DArray   :Proj :Grad uv1D uv1D)
+     (sample im2D         uv2DArray   :Proj :Grad uv2D uv2D)
+     (sample im3D         uvCubeArray :Proj :Grad uv3D uv3D)
 
-     (+ (sample im-1D         uv-1D         :Dref 0.0)
-        (sample im-2D         uv-2D         :Dref 0.0)
-        (sample im-Cube       uv-Cube       :Dref 0.0)
-        (sample im-1D-array   uv-1D-array   :Dref 0.0)
-        (sample im-2D-array   uv-2D-array   :Dref 0.0)
-        (sample im-Cube-array uv-Cube-array :Dref 0.0)
+     (+ (sample im1D         uv1D         :Dref 0.0)
+        (sample im2D         uv2D         :Dref 0.0)
+        (sample imCube       uvCube       :Dref 0.0)
+        (sample im1DArray   uv1DArray   :Dref 0.0)
+        (sample im2DArray   uv2DArray   :Dref 0.0)
+        (sample imCubeArray uvCubeArray :Dref 0.0)
         
-        (sample im-1D         uv-1D         :Dref 0.0 :Lod 0)
-        (sample im-2D         uv-2D         :Dref 0.0 :Lod 0)
-        (sample im-Cube       uv-Cube       :Dref 0.0 :Lod 0)
-        (sample im-1D-array   uv-1D-array   :Dref 0.0 :Lod 0)
-        (sample im-2D-array   uv-2D-array   :Dref 0.0 :Lod 0)
-        (sample im-Cube-array uv-Cube-array :Dref 0.0 :Lod 0)
+        (sample im1D         uv1D         :Dref 0.0 :Lod 0)
+        (sample im2D         uv2D         :Dref 0.0 :Lod 0)
+        (sample imCube       uvCube       :Dref 0.0 :Lod 0)
+        (sample im1DArray   uv1DArray   :Dref 0.0 :Lod 0)
+        (sample im2DArray   uv2DArray   :Dref 0.0 :Lod 0)
+        (sample imCubeArray uvCubeArray :Dref 0.0 :Lod 0)
     
-        (sample im-1D         uv-1D-array   :Proj :Dref 0.0)
-        (sample im-2D         uv-2D-array   :Proj :Dref 0.0)
+        (sample im1D         uv1DArray   :Proj :Dref 0.0)
+        (sample im2D         uv2DArray   :Proj :Dref 0.0)
         
-        (sample im-1D         uv-1D-array   :Proj :Dref 0.0 :Lod 0)
-        (sample im-2D         uv-2D-array   :Proj :Dref 0.0 :Lod 0)
+        (sample im1D         uv1DArray   :Proj :Dref 0.0 :Lod 0)
+        (sample im2D         uv2DArray   :Proj :Dref 0.0 :Lod 0)
         
         )))
 
-(fn* test-image-gather-operations (vec4 f32)
-  [ (im-2D image-2D)          
-    (im-3D image-3D)          
-    (im-Cube image-Cube)        
-    (im-1D-array image-1D-array)    
-    (im-2D-array image-2D-array)    
-    (im-Cube-array image-Cube-array)
+(fn* testImageGatherOperations (vec4 f32)
+  [ (im2D image2D)          
+    (im3D image3D)          
+    (imCube imageCube)        
+    (im1DArray image1DArray)    
+    (im2DArray image2DArray)    
+    (imCubeArray imageCubeArray)
     
-    (uv-2D (vec2 f32))
-    (uv-3D (vec3 f32))
-    (uv-Cube (vec3 f32))
-    (uv-1D-array (vec2 f32))
-    (uv-2D-array (vec3 f32))
-    (uv-Cube-array (vec4 f32)) ]
+    (uv2D (vec2 f32))
+    (uv3D (vec3 f32))
+    (uvCube (vec3 f32))
+    (uv1DArray (vec2 f32))
+    (uv2DArray (vec3 f32))
+    (uvCubeArray (vec4 f32)) ]
 
-  (+ (gather im-2D         uv-2D         0)
-     (gather im-Cube       uv-Cube       0)
-     (gather im-2D-array   uv-2D-array   0)
-     (gather im-Cube-array uv-Cube-array 0)
+  (+ (gather im2D         uv2D         0)
+     (gather imCube       uvCube       0)
+     (gather im2DArray   uv2DArray   0)
+     (gather imCubeArray uvCubeArray 0)
      
-     (gather im-2D         uv-2D         0 :Offset uv-2D)
-     (gather im-2D-array   uv-2D-array   0 :Offset uv-2D)
+     (gather im2D         uv2D         0 :Offset uv2D)
+     (gather im2DArray   uv2DArray   0 :Offset uv2D)
      
-     (gather im-2D         uv-2D         0 :ConstOffsets [[1 1] [1 1] [1 1] [1 1]])
-     (gather im-2D-array   uv-2D-array   0 :ConstOffsets [[1 1] [1 1] [1 1] [1 1]])
+     (gather im2D         uv2D         0 :ConstOffsets [[1 1] [1 1] [1 1] [1 1]])
+     (gather im2DArray   uv2DArray   0 :ConstOffsets [[1 1] [1 1] [1 1] [1 1]])
 
-     (+ (gather im-2D         uv-2D         :Dref 0.0 :Offset uv-2D)
-        (gather im-2D-array   uv-2D-array   :Dref 0.0 :Offset uv-2D)
+     (+ (gather im2D         uv2D         :Dref 0.0 :Offset uv2D)
+        (gather im2DArray   uv2DArray   :Dref 0.0 :Offset uv2D)
         
-        (gather im-2D         uv-2D         :Dref 0.0 :ConstOffsets [[1 1] [1 1] [1 1] [1 1]])
-        (gather im-2D-array   uv-2D-array   :Dref 0.0 :ConstOffsets [[1 1] [1 1] [1 1] [1 1]])
+        (gather im2D         uv2D         :Dref 0.0 :ConstOffsets [[1 1] [1 1] [1 1] [1 1]])
+        (gather im2DArray   uv2DArray   :Dref 0.0 :ConstOffsets [[1 1] [1 1] [1 1] [1 1]])
         )))
 
-(fn* test-image-fetch-operations (vec4 f32) 
-  [ (im-1D image-1D)          
-    (im-2D image-2D)          
-    (im-3D image-3D)            
-    (im-1D-array image-1D-array)    
-    (im-2D-array image-2D-array)    
+(fn* testImageFetchOperations (vec4 f32) 
+  [ (im1D image1D)          
+    (im2D image2D)          
+    (im3D image3D)            
+    (im1DArray image1DArray)    
+    (im2DArray image2DArray)    
     
-    (storage-im-1D storage-image-1D)          
-    (storage-im-2D storage-image-2D)          
-    (storage-im-3D storage-image-3D)            
-    (storage-im-Cube storage-image-Cube)    
-    (storage-im-1D-array storage-image-1D-array)    
-    (storage-im-2D-array storage-image-2D-array)    
-    (storage-im-Cube-array storage-image-Cube-array)    
+    (storageIm1D storageImage1D)          
+    (storageIm2D storageImage2D)          
+    (storageIm3D storageImage3D)            
+    (storageImCube storageImageCube)    
+    (storageIm1DArray storageImage1DArray)    
+    (storageIm2DArray storageImage2DArray)    
+    (storageImCubeArray storageImageCubeArray)    
 
-    (utb uniform-texel-buffer)
-    (stb storage-texel-buffer)
+    (utb uniformTexelBuffer)
+    (stb storageTexelBuffer)
 
-    (uv-1D u32)
-    (uv-2D (vec2 u32))
-    (uv-3D (vec3 u32))
-    (uv-Cube (vec3 u32))
-    (uv-1D-array (vec2 u32))
-    (uv-2D-array (vec3 u32))
-    (uv-Cube-array (vec4 u32)) ]
+    (uv1D u32)
+    (uv2D (vec2 u32))
+    (uv3D (vec3 u32))
+    (uvCube (vec3 u32))
+    (uv1DArray (vec2 u32))
+    (uv2DArray (vec3 u32))
+    (uvCubeArray (vec4 u32)) ]
 
-  (+ (fetch im-1D         uv-1D)
-     (fetch utb           uv-1D)
-     (fetch stb           uv-1D)
-     (fetch im-2D         uv-2D)
-     (fetch im-3D         uv-3D)
-     (fetch im-1D-array   uv-1D-array)
-     (fetch im-2D-array   uv-2D-array)
+  (+ (fetch im1D         uv1D)
+     (fetch utb           uv1D)
+     (fetch stb           uv1D)
+     (fetch im2D         uv2D)
+     (fetch im3D         uv3D)
+     (fetch im1DArray   uv1DArray)
+     (fetch im2DArray   uv2DArray)
      
-     (fetch im-1D         uv-1D         :Lod 1)
-     (fetch im-2D         uv-2D         :Lod 1)
-     (fetch im-3D         uv-3D         :Lod 1)
-     (fetch im-1D-array   uv-1D-array   :Lod 1)
-     (fetch im-2D-array   uv-2D-array   :Lod 1)
+     (fetch im1D         uv1D         :Lod 1)
+     (fetch im2D         uv2D         :Lod 1)
+     (fetch im3D         uv3D         :Lod 1)
+     (fetch im1DArray   uv1DArray   :Lod 1)
+     (fetch im2DArray   uv2DArray   :Lod 1)
      
-     (fetch storage-im-1D         uv-1D)
-     (fetch storage-im-2D         uv-2D)
-     (fetch storage-im-3D         uv-3D)
-     (fetch storage-im-Cube       uv-Cube)
-     (fetch storage-im-1D-array   uv-1D-array)
-     (fetch storage-im-2D-array   uv-2D-array)
-     (fetch storage-im-Cube-array uv-Cube-array)))
+     (fetch storageIm1D         uv1D)
+     (fetch storageIm2D         uv2D)
+     (fetch storageIm3D         uv3D)
+     (fetch storageImCube       uvCube)
+     (fetch storageIm1DArray   uv1DArray)
+     (fetch storageIm2DArray   uv2DArray)
+     (fetch storageImCubeArray uvCubeArray)))
 
 
-(fn* test-indexing void [(data Data) (other-pointer-value [*P { x f32 y f32 }] Aliased)]
+(fn* testIndexing void [(data Data) (otherPointerValue [*P { x f32 y f32 }] Aliased)]
   (var* data Data := data)
 
   (local v data.vector) ; Field access can use `.` in many cases
@@ -364,26 +369,26 @@
   (local m00  (data :matrix 0 0))  ; When using the list style indexing, we can chain multiple accesses together to get deeper elements.
   (local m0yz (data.matrix 0 :yz)) ; Matrix indexing returns columns, which we can then swizzle if we desire.
 
-  ; Note: p is a Function* PhysicalStorageBuffer64* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
+  ; Note: p is a Function* PhysicalStorageBuffer* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
   (local p data.pointer) 
 
   ; Felvine auto-dereferences pointer indirections, here we have two!
-  ; So all of the below are valid and equivalent, such that px is PhysicalStorageBuffer64* f32
+  ; So all of the below are valid and equivalent, such that px is PhysicalStorageBuffer* f32
 
   (local px p.x) 
   (local px p.*.x)
   (local px (p :* :x)) 
 
   ; Often you do want the indexed value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
-  ; For example, only pointers-to-arrays can be dynamically indexed, while direct array indices must be constants.
+  ; For example, only pointers-toArrays can be dynamically indexed, while direct array indices must be constants.
   ; Usually the default semantics will be the ones you want though, and indexing will preserve the outermost pointer.
 
-  (local a0-ptr (data.array 0)) ; Function* f32, using dynamic indexing (happens to be constant here).
+  (local a0ptr (data.array 0)) ; Function* f32, using dynamic indexing (happens to be constant here).
   (local a0 (data.array.* 0)) ; f32, using constant indexing. Worse choice since it technically copies the array.
 
   ; Felvine always auto-dereferences when needed so usually you will not need to do this, but all these are valid and equivalent:
-  (local b (+ a0-ptr.* 10))
-  (local b (+ a0-ptr 10))
+  (local b (+ a0ptr.* 10))
+  (local b (+ a0ptr 10))
   (local b (+ a0 10))
 
   ; Because the leading pointer type is preserved, the SAME indexing syntax is used for storing to variables/buffers etc.
@@ -391,16 +396,16 @@
   (set* (data :array 5) v0)
 
   (set* data.pointer.* { :x px :y px }) ; This is where the trailing * also matters!
-  (set* data.pointer other-pointer-value) ; Without it, we are setting the pointer itself, not its contents.
+  (set* data.pointer otherPointerValue) ; Without it, we are setting the pointer itself, not its contents.
 )
 
 
-(fn* test-types f32
+(fn* testTypes f32
   [ (num f32)
     (vec (vec3 f32))
     (mat (mat4 f32))
     (array [10 f32])
-    (runtime-array [f32])
+    (runtimeArray [f32])
     (ptr [*P f32] Restrict)
     (struct {
       x f32
@@ -410,9 +415,9 @@
   num)
 
 
-(fn float-ops [x]
+(fn floatOps [x]
   (+ (round x)
-     (round-even x)
+     (roundEven x)
      (ceil x)
      (floor x)
      (trunc x)
@@ -424,44 +429,44 @@
      (exp x)
      (sqrt x)))
 
-(fn vector-ops [v0 v1]
+(fn vectorOps [v0 v1]
   (+ (distance v0 v1)
      (norm v0)
      (normalize v0)
-     (face-forward v0 v0 v1)
+     (faceForward v0 v0 v1)
      (reflect v0 v1)
      (refract v0 v1 0.8)))
 
-(fn* test-floating-operations f32
+(fn* testFloatingOperations f32
   [(v0 (vec3 f32)) (v1 (vec3 f32))]
   (local a
-    (+ (float-ops v0.0)
-       (float-ops v0)
-       (vector-ops v0 v1)))
+    (+ (floatOps v0.0)
+       (floatOps v0)
+       (vectorOps v0 v1)))
   (dot a a))
 
 
-(fn* test-pack-unpack f64 [(v (vec2 f32)) (w (vec4 f32)) (d f64)]
+(fn* testPackUnpack f64 [(v (vec2 f32)) (w (vec4 f32)) (d f64)]
   (local u1
-    (+ (pack-unorm2x16 v)
-       (pack-snorm2x16 v)
-       (pack-half2x16 v)))
+    (+ (packUnorm2x16 v)
+       (packSnorm2x16 v)
+       (packHalf2x16 v)))
   (local u2
-    (+ (pack-unorm4x8 w)
-       (pack-snorm4x8 w)))
-  (local u (+ ((vec2 u32) u1 u2) (unpack-double2x32 d)))
-  (pack-double2x32 u))
+    (+ (packUnorm4x8 w)
+       (packSnorm4x8 w)))
+  (local u (+ ((vec2 u32) u1 u2) (unpackDouble2x32 d)))
+  (packDouble2x32 u))
 
 
 (entrypoint main Fragment []
   (set* Color (+ Position
-    (test-number-operations 1 1 1 1 1 1 1 1 1 1)
-    (test-vector-projections 1)
-    (test-conditional-operations 1 1 1 1 1 1)
-    (test-loop-operations 1 1)
-    (test-constant-propagation 1)
-    (test-subgroup-operations 1))))
+    (testNumberOperations 1 1 1 1 1 1 1 1 1 1)
+    (testVectorProjections 1)
+    (testConditionalOperations 1 1 1 1 1 1)
+    (testLoopOperations 1 1)
+    (testConstantPropagation 1)
+    (testSubgroupOperations 1))))
 
 
-(execution-mode main OriginUpperLeft)
-(execution-mode "main" DepthLess)
+(executionMode main OriginUpperLeft)
+(executionMode "main" DepthLess)

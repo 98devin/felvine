@@ -43,44 +43,44 @@
 
 (fn Env.new []
     (local env
-        { :next-id 1
-          :type-ids {}        ; id assigned to each unique type-info
-          :types {}           ; types 
-          :types-laid-out {}  ; set of types which have been given layout decorations already
-          :node-ids {}        ; id assigned to each node
-          :constant-ids {}    ; map[type] to map[summary] to constant node for deduplication
-          :ext-inst-ids {}     ; map[str] to id for external instruction sets
-          :decorations {}     ; map id to table of decorations
-          :mem-decorations {} ; map type id to member to table of decorations
-          :execution-modes {} ; execution modes for given entrypoint name
-          :capabilities {}    ; table of capabilities to easily check which are present
-          :extensions {}      ; table of extensions ''
+        { :nextID 1
+          :typeIDs {}        ; id assigned to each unique type-info
+          :types {}          ; types 
+          :typesLaidOut {}   ; set of types which have been given layout decorations already
+          :nodeIDs {}        ; id assigned to each node
+          :constantIDs {}    ; map[type] to map[summary] to constant node for deduplication
+          :extInstIDs {}     ; map[str] to id for external instruction sets
+          :decorations {}    ; map id to table of decorations
+          :memDecorations {} ; map type id to member to table of decorations
+          :executionModes {} ; execution modes for given entrypoint name
+          :capabilities {}   ; table of capabilities to easily check which are present
+          :extensions {}     ; table of extensions ''
 
-          :extinstimports []  ; ExtInstImport instructions
-          :entrypoints {}     ; entrypoint name to id
-          :debug []           ; debug instructions
-          :static []          ; types/constant instructions
-          :globals []         ; global variable declarations
-          :functions []       ; function objects
+          :extinstimports [] ; ExtInstImport instructions
+          :entrypoints {}    ; entrypoint name to id
+          :debug []          ; debug instructions
+          :static []         ; types/constant instructions
+          :globals []        ; global variable declarations
+          :functions []      ; function objects
 
           :version { :major 1 :minor 5 }
         })
     (setmetatable env Env.mt))
 
-(fn Env.produce-header [self]
+(fn Env.produceHeader [self]
   (base.SpirvHeader.new
     { :version self.version
       :generatorMagic 0xEAEAEAEA
-      :identifierBound self.next-id
+      :identifierBound self.nextID
     }))
 
-(fn enumerant-has-id-operands [enum v]
+(fn enumerantHasIDOperands [enum v]
   (local desc (. enum.enumerants v.tag))
   (if desc.operands
     (accumulate [any false _ opdesc (ipairs desc.operands) &until any]
       (opdesc.kind:match "Id"))))
 
-(fn Env.produce-ops [self ops]
+(fn Env.produceOps [self ops]
   (local ops (or ops []))
   
   (each [cap _ (pairs self.capabilities)]
@@ -93,41 +93,41 @@
   (each [_ op (pairs self.extinstimports)]
     (table.insert ops op))
 
-  (local addressing-model
+  (local addressingModel
     (if self.capabilities.PhysicalStorageBufferAddresses
       AddressingModel.PhysicalStorageBuffer64
       AddressingModel.Logical))
 
-  (local memory-model
+  (local memoryModel
     (if self.capabilities.VulkanMemoryModel MemoryModel.Vulkan
         self.capabilities.Kernel            MemoryModel.OpenCL
         MemoryModel.GLSL450))
   
-  (table.insert ops (Op.OpMemoryModel addressing-model memory-model))
+  (table.insert ops (Op.OpMemoryModel addressingModel memoryModel))
 
   (each [_ op (ipairs self.entrypoints)]
     (table.insert ops op))
 
-  (each [entrypoint modes (pairs self.execution-modes)]
-    (local entrypoint-id (. self.entrypoints entrypoint))
+  (each [entrypoint modes (pairs self.executionModes)]
+    (local entrypointID (. self.entrypoints entrypoint))
     (each [_ mode (pairs modes)]
-      (if (enumerant-has-id-operands ExecutionMode mode)
-        (table.insert ops (Op.OpExecutionModeId entrypoint-id mode))
-        (table.insert ops (Op.OpExecutionMode entrypoint-id mode)))))
+      (if (enumerantHasIDOperands ExecutionMode mode)
+        (table.insert ops (Op.OpExecutionModeId entrypointID mode))
+        (table.insert ops (Op.OpExecutionMode entrypointID mode)))))
 
   (each [_ op (ipairs self.debug)]
     (table.insert ops op))
 
   (each [id decs (pairs self.decorations)]
     (each [_ dec (pairs decs)]
-      (if (enumerant-has-id-operands Decoration dec)
+      (if (enumerantHasIDOperands Decoration dec)
         (table.insert ops (Op.OpDecorateId id dec))
         (table.insert ops (Op.OpDecorate id dec)))))
 
-  (each [id mem-decs (pairs self.mem-decorations)]
-    (each [mem decs (pairs mem-decs)]
+  (each [id memDecs (pairs self.memDecorations)]
+    (each [mem decs (pairs memDecs)]
       (each [_ dec (pairs decs)]
-        (assert (not (enumerant-has-id-operands Decoration dec))
+        (assert (not (enumerantHasIDOperands Decoration dec))
           (.. "Cannot use this decoration on a member: no such OpMemberDecorateId: " mem (tostring dec)))
         (table.insert ops (Op.OpMemberDecorate id mem dec)))))
 
@@ -140,10 +140,10 @@
   (each [_ func (ipairs self.functions)]
     (table.insert ops
       (Op.OpFunction
-        (self:type-id func.type.return)
+        (self:typeID func.type.return)
         func.id
         func.control
-        (self:type-id func.type)))
+        (self:typeID func.type)))
         
     (each [_ op (ipairs func.opparams)]
       (table.insert ops op))
@@ -174,22 +174,22 @@
 (fn Env.extension? [self ext]
   (. self.extensions ext))
 
-(fn Env.ext-inst-id [self ext-inst]
-  (or (. self.ext-inst-ids ext-inst)
-    (do (local id (self:fresh-id))
-        (local op (Op.OpExtInstImport id ext-inst))
+(fn Env.extInstID [self extInst]
+  (or (. self.extInstIDs extInst)
+    (do (local id (self:freshID))
+        (local op (Op.OpExtInstImport id extInst))
         (self:instruction op)
-        (tset self.ext-inst-ids ext-inst id)
+        (tset self.extInstIDs extInst id)
         id)))
 
-(fn get-or-set-empty [t field]
+(fn getOrSetEmpty [t field]
   (local v (. t field))
   (if v v
     (do (local empty {})
         (tset t field empty)
         empty)))
 
-(fn Env.execution-mode [self entrypoint mode]
+(fn Env.executionMode [self entrypoint mode]
   ; Fix up mode so that if any nodes are referenced, they are replaced by Id values
   ; This is fine to do in the Env itself, since any such nodes must be (spec) constants anyway.
   (local u32 (Type.int 32 false))
@@ -200,10 +200,10 @@
       (local opdesc (. desc.operands i))
       (when (opdesc.kind:match "Id")
         ; If any non-integer ids become necessary here will need to change
-        (tset mode.operands i (self:reify-node (u32 arg))))))
+        (tset mode.operands i (self:reifyNode (u32 arg))))))
 
-  (local modes-for-entrypoint (get-or-set-empty self.execution-modes entrypoint))
-  (tset modes-for-entrypoint mode.tag mode))
+  (local modesForEntrypoint (getOrSetEmpty self.executionModes entrypoint))
+  (tset modesForEntrypoint mode.tag mode))
 
 (fn Env.instruction [self op]
   (if 
@@ -216,78 +216,78 @@
     (or (= op.tag :OpName) (= op.tag :OpMemberName)) (table.insert self.debug op)
     (error (.. "Cannot use operation at global scope: " (tostring op)))))
 
-(fn Env.fresh-id [self]
-  (local next-id self.next-id)
-  (set self.next-id (+ next-id 1))
-  next-id)
+(fn Env.freshID [self]
+  (local nextID self.nextID)
+  (set self.nextID (+ nextID 1))
+  nextID)
 
-(fn Env.type-id? [self type]
-  (?. self.type-ids type.summary))
+(fn Env.typeID? [self type]
+  (?. self.typeIDs type.summary))
 
-(fn Env.type-id [self type]
-  (self:reify-type type))
+(fn Env.typeID [self type]
+  (self:reifyType type))
 
-(fn Env.reify-type [self type id]
-  (or (self:type-id? type)
+(fn Env.reifyType [self type id]
+  (or (self:typeID? type)
     (do
-      (when id (tset self.type-ids type.summary id)) ; hack needed due to recursive buffer address types
-      (local new-type-id (or (type:reify self id) (self:fresh-id)))
-      (tset self.type-ids type.summary new-type-id)
-      new-type-id)))
+      (when id (tset self.typeIDs type.summary id)) ; hack needed due to recursive buffer address types
+      (local newTypeID (or (type:reify self id) (self:freshID)))
+      (tset self.typeIDs type.summary newTypeID)
+      newTypeID)))
 
-(fn Env.constant-id [self tid summary]
-  (local constants-of-type (or (?. self.constant-ids tid) {}))
-  (local existing (?. constants-of-type summary))
+(fn Env.constantID [self tid summary]
+  (local constantsOfType (or (?. self.constantIDs tid) {}))
+  (local existing (?. constantsOfType summary))
   (if existing (values true existing)
     (do
-      (local id (self:fresh-id))
-      (tset constants-of-type summary id)
-      (tset self.constant-ids tid constants-of-type)
+      (local id (self:freshID))
+      (tset constantsOfType summary id)
+      (tset self.constantIDs tid constantsOfType)
       (values false id))))
 
-(fn Env.node-id? [self node]
-  (?. self.node-ids node))
+(fn Env.nodeID? [self node]
+  (?. self.nodeIDs node))
 
-(fn Env.node-id [self node]
-  (self:reify-node node))
+(fn Env.nodeID [self node]
+  (self:reifyNode node))
 
-(fn Env.reify-node [self node]
-  (or (self:node-id? node)
+(fn Env.reifyNode [self node]
+  (or (self:nodeID? node)
     (do
-      (local new-node-id (or (node:reify self) (self:fresh-id)))
-      (tset self.node-ids node new-node-id)
-      new-node-id)))
+      (local newNodeID (or (node:reify self) (self:freshID)))
+      (tset self.nodeIDs node newNodeID)
+      newNodeID)))
 
-(fn Env.decorate-id [self id ...]
-  (local id-decorations (get-or-set-empty self.decorations id))
+(fn Env.decorateID [self id ...]
+  (local idDecorations (getOrSetEmpty self.decorations id))
   (each [_ v (ipairs [...])]
-    (tset id-decorations v.tag v)))
+    (tset idDecorations v.tag v)))
 
-(fn Env.decorate-member-id [self id member ...]
-  (local id-decorations (get-or-set-empty self.mem-decorations id))
-  (local mem-decorations (get-or-set-empty id-decorations member))
+(fn Env.decorateMemberID [self id member ...]
+  (local idDecorations (getOrSetEmpty self.memDecorations id))
+  (local memDecorations (getOrSetEmpty idDecorations member))
   (each [_ v (ipairs [...])]
-    (tset mem-decorations v.tag v)))
+    (tset memDecorations v.tag v)))
 
-(fn Env.decorate-node [self node ...]
-  (local id (self:node-id node))
-  (self:decorate-id id ...))
+(fn Env.decorateNode [self node ...]
+  (local id (self:nodeID node))
+  (self:decorateID id ...))
 
-(fn Env.decorate-type [self type ...]
-  (local id (self:type-id type))
-  (self:decorate-id id ...))
+(fn Env.decorateType [self type ...]
+  (local id (self:typeID type))
+  (self:decorateID id ...))
 
 (fn Env.decorated? [self type tag]
-  (local id (self:type-id type))
+  (local id (self:typeID type))
   (?. self.decorations id tag))
 
-(fn Env.decorate-member [self type member ...]
-  (local id (self:type-id type))
-  (self:decorate-member-id id member ...))
+(fn Env.decorateMember [self type member ...]
+  (local id (self:typeID type))
+  (self:decorateMemberID id member ...))
 
-(fn Env.decorated-member? [self type member tag]
-  (local id (self:type-id type))
-  (?. self.mem-decorations id member tag))
+(fn Env.decoratedMember? [self type member tag]
+  (local id (self:typeID type))
+  (?. self.memDecorations id member tag))
   
 ; function structure
 ; .env         env
@@ -304,7 +304,7 @@
 (set Function.mt.__index Function)
 
 (fn Function.new [env type name control]
-  (local id (env:fresh-id))
+  (local id (env:freshID))
   (local fun
     { :env env
       :id id
@@ -337,7 +337,7 @@
 
 (fn Block.new [function]
   (local env function.env)
-  (local id (env:fresh-id))
+  (local id (env:freshID))
   (local lbl (Op.OpLabel id))
   (local b 
     { :env env
@@ -353,8 +353,8 @@
 (fn Block.sibling [self]
   (Block.new self.function))
 
-(fn Block.ext-inst-id [self ext-inst]
-  (self.env:ext-inst-id ext-inst))
+(fn Block.extInstID [self extInst]
+  (self.env:extInstID extInst))
 
 (fn Block.instruction [self op]
   (case op.tag
@@ -375,129 +375,129 @@
     :OpPhi (table.insert self.opphi op)
     _ (table.insert self.body op)))
 
-(fn Block.fresh-id [self]
-  (self.env:fresh-id))
+(fn Block.freshID [self]
+  (self.env:freshID))
 
-(fn Block.constant-id [self tid summary]
-  (self.env:constant-id tid summary))
+(fn Block.constantID [self tid summary]
+  (self.env:constantID tid summary))
 
-(fn Block.type-id? [self type]
-  (self.env:type-id? type))
+(fn Block.typeID? [self type]
+  (self.env:typeID? type))
 
-(fn Block.type-id [self type]
-  (self.env:type-id type))
+(fn Block.typeID [self type]
+  (self.env:typeID type))
 
-(fn Block.reify-type [self type id]
-  (self.env:reify-type type id))
+(fn Block.reifyType [self type id]
+  (self.env:reifyType type id))
 
-; (fn Block.reify-type [self type id]
-;   (or (self.env:type-id? type)
+; (fn Block.reifyType [self type id]
+;   (or (self.env:typeID? type)
 ;     (do
-;       (when id (tset self.env.type-ids type.summary id))
-;       (local new-type-id (or (type:reify self id) (self:fresh-id)))
-;       (tset self.env.type-ids type.summary new-type-id)
-;       new-type-id)))
+;       (when id (tset self.env.typeIDs type.summary id))
+;       (local newTypeID (or (type:reify self id) (self:freshID)))
+;       (tset self.env.typeIDs type.summary newTypeID)
+;       newTypeID)))
 
-(fn Block.node-id? [self node]
-  (self.env:node-id? node))
+(fn Block.nodeID? [self node]
+  (self.env:nodeID? node))
 
-(fn Block.node-id [self node]
-  (self:reify-node node))
+(fn Block.nodeID [self node]
+  (self:reifyNode node))
 
-(fn Block.interface-id [self id]
+(fn Block.interfaceID [self id]
   (tset self.function.interface id true))
 
-(fn Block.decorate-id [self id ...]
-  (self.env:decorate-id id ...))
+(fn Block.decorateID [self id ...]
+  (self.env:decorateID id ...))
   
-(fn Block.decorate-member-id [self id member ...]
-  (self.env:decorate-member-id id member ...))
+(fn Block.decorateMemberID [self id member ...]
+  (self.env:decorateMemberID id member ...))
 
-(fn Block.reify-node [self node]
-  (or (self:node-id? node)
+(fn Block.reifyNode [self node]
+  (or (self:nodeID? node)
     (do
-      (local new-node-id (or (node:reify self) (self:fresh-id)))
-      (tset self.env.node-ids node new-node-id)
-      new-node-id)))
+      (local newNodeID (or (node:reify self) (self:freshID)))
+      (tset self.env.nodeIDs node newNodeID)
+      newNodeID)))
 
 
 (set Runtime.mt.__index Runtime)
 
-(fn Runtime.new [execution-env]
+(fn Runtime.new [executionEnv]
   (setmetatable
     { :env (Env.new)
-      :execution-env (or execution-env (ExecutionEnvironment.permissive))
-      :ctx-stack []
+      :executionEnv (or executionEnv (ExecutionEnvironment.permissive))
+      :ctxStack []
     } Runtime.mt))
 
-(fn Runtime.feature-supported? [self feature]
+(fn Runtime.featureSupported? [self feature]
   (or (. self.env.capabilities feature) (. self.env.extensions feature)
     (do (local req (. requirements.index feature))
-        (if (not= nil req) (req:validate self.execution-env)))))
+        (if (not= nil req) (req:validate self.executionEnv)))))
 
-(fn Runtime.current-ctx [self]
-  (. self.ctx-stack (# self.ctx-stack)))
+(fn Runtime.currentCtx [self]
+  (. self.ctxStack (# self.ctxStack)))
 
-(fn Runtime.push-ctx [self ctx]
-  (table.insert self.ctx-stack ctx))
+(fn Runtime.pushCtx [self ctx]
+  (table.insert self.ctxStack ctx))
 
-(fn Runtime.pop-ctx [self]
-  (table.remove self.ctx-stack))
+(fn Runtime.popCtx [self]
+  (table.remove self.ctxStack))
 
-(fn Runtime.fresh-id [self]
-  (self.env:fresh-id))
+(fn Runtime.freshID [self]
+  (self.env:freshID))
 
-(fn Runtime.ext-inst-id [self ext-inst]
-  (self.env:ext-inst-id ext-inst))
+(fn Runtime.extInstID [self extInst]
+  (self.env:extInstID extInst))
 
 (fn Runtime.instruction [self op]
-  (local ctx (or (self:current-ctx) self.env))
+  (local ctx (or (self:currentCtx) self.env))
   (ctx:instruction op))
 
-(fn Runtime.node-id? [self node]
-  (self.env:node-id? node))
+(fn Runtime.nodeID? [self node]
+  (self.env:nodeID? node))
 
-(fn Runtime.node-id [self node]
-  (local ctx (or (self:current-ctx) self.env))
-  (or (ctx:node-id? node)
+(fn Runtime.nodeID [self node]
+  (local ctx (or (self:currentCtx) self.env))
+  (or (ctx:nodeID? node)
     (do
-      (local new-node-id (or (node:reify ctx) (ctx:fresh-id)))
-      (tset self.env.node-ids node new-node-id)
-      new-node-id)))
+      (local newNodeID (or (node:reify ctx) (ctx:freshID)))
+      (tset self.env.nodeIDs node newNodeID)
+      newNodeID)))
 
-(fn Runtime.constant-id [self tid summary]
-  (self.env:constant-id tid summary))
+(fn Runtime.constantID [self tid summary]
+  (self.env:constantID tid summary))
 
-(fn Runtime.type-id? [self type]
-  (self.env:type-id? type))
+(fn Runtime.typeID? [self type]
+  (self.env:typeID? type))
 
-(fn Runtime.type-id [self type]
-  (self.env:type-id type))
+(fn Runtime.typeID [self type]
+  (self.env:typeID type))
 
-(fn Runtime.reify-type [self type id]
-  (self.env:reify-type type id))
+(fn Runtime.reifyType [self type id]
+  (self.env:reifyType type id))
 
-; (fn Runtime.reify-type [self type id]
-;   (local ctx (or (self:current-ctx) self.env))
-;   (or (ctx:type-id? type)
+; (fn Runtime.reifyType [self type id]
+;   (local ctx (or (self:currentCtx) self.env))
+;   (or (ctx:typeID? type)
 ;     (do
-;       (when id (tset self.env.type-ids type.summary id))
-;       (local new-type-id (or (type:reify ctx id) (ctx:fresh-id)))
-;       (tset self.env.type-ids type.summary new-type-id)
-;       new-type-id)))
+;       (when id (tset self.env.typeIDs type.summary id))
+;       (local newTypeID (or (type:reify ctx id) (ctx:freshID)))
+;       (tset self.env.typeIDs type.summary newTypeID)
+;       newTypeID)))
 
-(fn Block.decorate-id [self id ...]
-  (self.env:decorate-id id ...))
+(fn Block.decorateID [self id ...]
+  (self.env:decorateID id ...))
   
-(fn Block.decorate-member-id [self id member ...]
-  (self.env:decorate-member-id id member ...))
+(fn Block.decorateMemberID [self id member ...]
+  (self.env:decorateMemberID id member ...))
   
-(fn Runtime.mk-local-ctx [self]
-  (local ctx (self:current-ctx))
+(fn Runtime.mkLocalCtx [self]
+  (local ctx (self:currentCtx))
   (ctx:sibling))
 
 
-(fn Dsl.create-exported-env [runtime]
+(fn Dsl.createExportedEnv [runtime]
   (local dsl 
     { : types 
       : spirv
@@ -513,13 +513,13 @@
       :sample Node.sample
       :fetch Node.fetch
       :gather Node.gather
-      :query-image-size Node.query-image-size
-      :query-image-lod Node.query-image-lod
-      :query-image-size-lod Node.query-image-size-lod
-      :query-image-levels Node.query-image-levels
-      :query-image-samples Node.query-image-samples
-      :sampled-with Node.sampled-with
-      :sample-with Node.sample-with
+      :queryImageSize Node.queryImageSize
+      :queryImageLod Node.queryImageLod
+      :queryImageSizeLod Node.queryImageSizeLod
+      :queryImageLevels Node.queryImageLevels
+      :queryImageSamples Node.queryImageSamples
+      :sampledWith Node.sampledWith
+      :sampleWith Node.sampleWith
 
       :subgroup Node.subgroup
       :atomic Node.atomic
@@ -556,13 +556,13 @@
       :*+ Node.fma ; TODO: expand this operator to allow chaining or something more useful
 
       :round Node.round
-      :round-even Node.round-even
+      :roundEven Node.roundEven
       :trunc Node.trunc
       :floor Node.floor
       :ceil Node.ceil
       :fract Node.fract
-      :degrees-to-radians Node.degrees-to-radians
-      :radians-to-degrees Node.radians-to-degrees
+      :degreesToRadians Node.degreesToRadians
+      :radiansToDegrees Node.radiansToDegrees
       :sign Node.sign
       :abs Node.abs
       :sin Node.sin
@@ -583,12 +583,12 @@
       :ln Node.log
       :log2 Node.log2
       :sqrt Node.sqrt
-      :inverse-sqrt Node.inverse-sqrt
+      :inverseSqrt Node.inverseSqrt
       :normalize Node.normalize
       :norm Node.norm
       :length Node.length
       :distance Node.distance
-      :face-forward Node.face-forward
+      :faceForward Node.faceForward
       :refract Node.refract
       :reflect Node.reflect
       :cross Node.cross
@@ -597,24 +597,24 @@
   
       :determinant Node.determinant
       :det Node.determinant
-      :invert Node.matrix-inverse
-      :transpose Node.matrix-transpose
+      :invert Node.matrixInverse
+      :transpose Node.matrixTranspose
      
       :| Node.|
       :& Node.&
 
-      :pack-snorm4x8 Node.pack-snorm4x8
-      :pack-unorm4x8 Node.pack-unorm4x8
-      :pack-snorm2x16 Node.pack-snorm2x16
-      :pack-unorm2x16 Node.pack-unorm2x16
-      :pack-half2x16 Node.pack-half2x16
-      :pack-double2x32 Node.pack-double2x32
-      :unpack-snorm2x16 Node.unpack-snorm2x16
-      :unpack-unorm2x16 Node.unpack-unorm2x16
-      :unpack-half2x16 Node.unpack-half2x16
-      :unpack-snorm4x8 Node.unpack-snorm4x8
-      :unpack-unorm4x8 Node.unpack-unorm4x8
-      :unpack-double2x32 Node.unpack-double2x32
+      :packSnorm4x8 Node.packSnorm4x8
+      :packUnorm4x8 Node.packUnorm4x8
+      :packSnorm2x16 Node.packSnorm2x16
+      :packUnorm2x16 Node.packUnorm2x16
+      :packHalf2x16 Node.packHalf2x16
+      :packDouble2x32 Node.packDouble2x32
+      :unpackSnorm2x16 Node.unpackSnorm2x16
+      :unpackUnorm2x16 Node.unpackUnorm2x16
+      :unpackHalf2x16 Node.unpackHalf2x16
+      :unpackSnorm4x8 Node.unpackSnorm4x8
+      :unpackUnorm4x8 Node.unpackUnorm4x8
+      :unpackDouble2x32 Node.unpackDouble2x32
 
       : package
       : require })
@@ -626,44 +626,44 @@
 
   (fn dsl.supported? [...]
     (accumulate [supported true _ f (ipairs [...]) &until (not supported)]
-      (runtime:feature-supported? f)))
+      (runtime:featureSupported? f)))
 
-  (fn capability-internal [caps-list]
-    (each [_ cap (ipairs caps-list)]
+  (fn capabilityInternal [capsList]
+    (each [_ cap (ipairs capsList)]
       (when (not (runtime.env:capability? cap.tag))
         (assert (dsl.supported? cap.tag) (tostring (. requirements.index cap.tag))
         (runtime.env:capability cap.tag)))))
 
-  (fn extension-internal [exts-list]
-    (each [_ ext (ipairs exts-list)]
+  (fn extensionInternal [extsList]
+    (each [_ ext (ipairs extsList)]
       (when (not (runtime.env:extension? ext))
         (assert (dsl.supported? ext) (tostring (. requirements.index ext)))
         (runtime.env:extension ext))))
 
   (fn dsl.capability [...]
-    (local implied-caps {})
-    (local implied-exts {})
+    (local impliedCaps {})
+    (local impliedExts {})
 
     (each [_ v (ipairs [...])]
       (local cap
         (if (= :string (type v)) (. Capability v) v))
-      (tset implied-caps cap.tag true)
-      (base.get-capabilities cap implied-caps)
-      (base.get-extensions cap implied-exts))
+      (tset impliedCaps cap.tag true)
+      (base.getCapabilities cap impliedCaps)
+      (base.getExtensions cap impliedExts))
 
-    (local implied-caps (icollect [c _ (pairs implied-caps)] (. Capability c)))
-    (capability-internal implied-caps)
+    (local impliedCaps (icollect [c _ (pairs impliedCaps)] (. Capability c)))
+    (capabilityInternal impliedCaps)
 
-    (local implied-exts (icollect [e _ (pairs implied-exts)] e))
-    (extension-internal implied-exts))
+    (local impliedExts (icollect [e _ (pairs impliedExts)] e))
+    (extensionInternal impliedExts))
 
   (fn dsl.extension [...]
-    (extension-internal [...]))
+    (extensionInternal [...]))
 
-  (fn dsl.execution-mode [entrypoint ...]
+  (fn dsl.executionMode [entrypoint ...]
     (each [_ exec (ipairs [...])]
       (assert (= (enum? exec) :ExecutionMode) "Execution modes must be explicitly constructed.")
-      (runtime.env:execution-mode entrypoint exec)))
+      (runtime.env:executionMode entrypoint exec)))
 
   ; (fn dsl.runtime []
   ;   runtime)
@@ -673,52 +673,50 @@
 
   (fn dsl.reify [item]
     (local id 
-      (if (node? item) (runtime:node-id item)
-          (type? item) (runtime:type-id item)))
+      (if (node? item) (runtime:nodeID item)
+          (type? item) (runtime:typeID item)))
     id)
 
-  (fn dsl.forward-pointer []
-    (local id (runtime:fresh-id))
-    (runtime.env:instruction (Op.OpTypeForwardPointer id StorageClass.PhysicalStorageBuffer64))
-    (Type.pointer nil StorageClass.PhysicalStorageBuffer64 id))
+  (fn dsl.forwardPointer []
+    (local id (runtime:freshID))
+    (runtime.env:instruction (Op.OpTypeForwardPointer id StorageClass.PhysicalStorageBuffer))
+    (Type.pointer nil StorageClass.PhysicalStorageBuffer id))
 
-  (fn dsl.finalize-forward-pointer [ptr]
+  (fn dsl.finalizeForwardPointer [ptr]
     (assert (not= nil ptr.elem) "Forward pointer type was not filled in!")
-    (runtime.env:reify-type ptr ptr.forward))
+    (runtime.env:reifyType ptr ptr.forward))
 
   (fn dsl.decorate [item ...]
     (local id (dsl.reify item))
-    (runtime.env:decorate-id id ...))
+    (runtime.env:decorateID id ...))
 
-  (fn dsl.decorate-member [item member ...]
+  (fn dsl.decorateMember [item member ...]
     (local id (dsl.reify item))
-    (runtime.env:decorate-member-id id member ...))
+    (runtime.env:decorateMemberID id member ...))
 
   (fn dsl.name [item name]
     (local id (dsl.reify item))
     (runtime:instruction (Op.OpName id name)))
 
-  ; TODO: Know what type each builtin is so we can automatically fill that in.
-  ; (fn dsl.builtin [name])
-
   (fn dsl.variable [type storage init]
     (local storage (or storage StorageClass.Function))
-
+ 
     (local init (if init (type init)))
-    (local const-init
-      (if (and init (or (= init.kind :constant) (= init.kind :spec-constant))) init))
+    (local constInit
+      (if (and init (or (= init.kind :constant) (= init.kind :specConstant))) init))
 
-    (local v (Node.variable type storage const-init))
-    (when (and init (not const-init))
+    (local v (Node.variable type storage constInit))
+    (when (and init (not constInit))
       (dsl.set* v init))
     v)
 
-  (fn dsl.uniform-storage-class [type]
+  (fn dsl.uniformStorageClass [type]
     (case type.kind
       :image StorageClass.UniformConstant
       :sampler StorageClass.UniformConstant
-      :sampled-image StorageClass.UniformConstant
-      :array (dsl.uniform-storage-class type.elem)
+      :sampledImage StorageClass.UniformConstant
+      :accelerationStructure StorageClass.UniformConstant
+      :array (dsl.uniformStorageClass type.elem)
       :struct
         (do (dsl.layout type)
             (dsl.decorate type Decoration.Block)
@@ -726,9 +724,9 @@
       _ (error (.. "Invalid uniform type: " type.summary))
       ))
 
-  (fn dsl.buffer-storage-class [type]
+  (fn dsl.bufferStorageClass [type]
     (case type.kind
-      :array (dsl.buffer-storage-class type.elem)
+      :array (dsl.bufferStorageClass type.elem)
       :struct 
         (do (dsl.layout type)
             (dsl.decorate type Decoration.Block)
@@ -736,7 +734,7 @@
       _ (error (.. "Invalid storage buffer type: " type.summary))
       ))
 
-  (fn dsl.push-constant-storage-class [type]
+  (fn dsl.pushConstantStorageClass [type]
     (case type.kind
       :struct
         (do (dsl.layout type)
@@ -745,62 +743,62 @@
       _ (error (.. "Invalid push constant type: " type.summary))
       ))
 
-  (fn dsl.set* [ptr value mem-operands]
-    (local ctx (runtime:current-ctx))
-    (local pid (ctx:node-id ptr))
-    (local vid (ctx:node-id (ptr.type.elem value)))
+  (fn dsl.set* [ptr value memOperands]
+    (local ctx (runtime:currentCtx))
+    (local pid (ctx:nodeID ptr))
+    (local vid (ctx:nodeID (ptr.type.elem value)))
 
-    (local base (Node.aux.base-pointer ptr))
+    (local base (Node.aux.basePointer ptr))
     (when (and (= :variable base.kind) (not= base.storage StorageClass.Function))
-      (ctx:interface-id (ctx:node-id base))) ; already requested so won't change instructions
+      (ctx:interfaceID (ctx:nodeID base))) ; already requested so won't change instructions
 
-    (local mem-operands
-      (if (= ptr.type.storage StorageClass.PhysicalStorageBuffer64)
-          (MemoryAccess (MemoryAccess.Aligned ptr.type.elem.alignment) mem-operands)
-          mem-operands))
+    (local memOperands
+      (if (= ptr.type.storage StorageClass.PhysicalStorageBuffer)
+          (MemoryAccess (MemoryAccess.Aligned ptr.type.elem.alignment) memOperands)
+          memOperands))
 
-    (ctx:instruction (Op.OpStore pid vid mem-operands)))
+    (ctx:instruction (Op.OpStore pid vid memOperands)))
 
   (fn dsl.write [...]
-    (local ctx (runtime:current-ctx))
-    (Node.aux.image-write ctx ...))
+    (local ctx (runtime:currentCtx))
+    (Node.aux.imageWrite ctx ...))
 
   (fn dsl.atomic.store [...]
-    (local ctx (runtime:current-ctx))
-    (Node.aux.atomic-store [ctx ...]))
+    (local ctx (runtime:currentCtx))
+    (Node.aux.atomicStore [ctx ...]))
 
   (fn dsl.barrier []
-    (dsl.control-barrier :Workgroup :Workgroup
+    (dsl.controlBarrier :Workgroup :Workgroup
       (MemorySemantics
         MemorySemantics.SequentiallyConsistent
         MemorySemantics.WorkgroupMemory)))
 
-  (fn dsl.control-barrier [...]
-    (local ctx (runtime:current-ctx))
-    (Node.aux.control-barrier ctx ...))
+  (fn dsl.controlBarrier [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.controlBarrier ctx ...))
 
-  (fn dsl.memory-barrier [...]
-    (local ctx (runtime:current-ctx))
-    (Node.aux.memory-barrier ctx ...))  
+  (fn dsl.memoryBarrier [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.memoryBarrier ctx ...))  
 
-  (fn dsl.define-function [return name params body]
+  (fn dsl.defineFunction [return name params body]
     (local funty (Type.function return params))
     (local fun (Function.new runtime.env funty name))
 
     (local ctx (Block.new fun))
-    (ctx:reify-type funty) ; make sure this exists
+    (ctx:reifyType funty) ; make sure this exists
 
-    (each [_ param-type (ipairs params)]
-      (local node (Node.param param-type))
-      (ctx:reify-node node)
+    (each [_ paramType (ipairs params)]
+      (local node (Node.param paramType))
+      (ctx:reifyNode node)
       (table.insert fun.params node))
 
-    (runtime:push-ctx ctx)
-    (local return-node (body (table.unpack fun.params)))
-    (local ctx (runtime:pop-ctx))
+    (runtime:pushCtx ctx)
+    (local returnNode (body (table.unpack fun.params)))
+    (local ctx (runtime:popCtx))
 
-    (if (and (not= return-node nil) (not= return-node.type.kind :void))
-      (ctx:instruction (Op.OpReturnValue (ctx:node-id (return return-node))))
+    (if (and (not= returnNode nil) (not= returnNode.type.kind :void))
+      (ctx:instruction (Op.OpReturnValue (ctx:nodeID (return returnNode))))
       (ctx:instruction Op.OpReturn))
     
     (ctx:instruction (Op.OpName fun.id name))
@@ -809,8 +807,8 @@
   (fn dsl.entrypoint [name executionmodel body]
     (assert (= nil (. runtime.env.entrypoints name)) "Cannot have two entrypoints with the same name")
 
-    (local fun-node (dsl.define-function (Type.void) name [] body))
-    (local fun fun-node.function)
+    (local funNode (dsl.defineFunction (Type.void) name [] body))
+    (local fun funNode.function)
     (local executionmodel
       (if (enum? executionmodel) executionmodel
         (. ExecutionModel executionmodel)))
@@ -818,144 +816,144 @@
       (Op.OpEntryPoint executionmodel fun.id name
         (icollect [k _ (pairs fun.interface)] k)))
     (tset runtime.env.entrypoints name fun.id)
-    fun-node)
+    funNode)
 
   (set dsl.geometry {})
 
-  (fn dsl.geometry.emit-vertex []
-    (local ctx (runtime:current-ctx))
-    (Node.aux.emit-vertex ctx))
+  (fn dsl.geometry.emitVertex []
+    (local ctx (runtime:currentCtx))
+    (Node.aux.emitVertex ctx))
 
-  (fn dsl.geometry.end-primitive []
-    (local ctx (runtime:current-ctx))
-    (Node.aux.end-primitive ctx))
+  (fn dsl.geometry.endPrimitive []
+    (local ctx (runtime:currentCtx))
+    (Node.aux.endPrimitive ctx))
 
   (set dsl.mesh {})
 
-  (fn dsl.mesh.set-mesh-outputs [...]
-    (local ctx (runtime:current-ctx))
-    (Node.aux.set-mesh-outputs ctx ...))
+  (fn dsl.mesh.setMeshOutputs [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.setMeshOutputs ctx ...))
 
-  (fn dsl.mesh.emit-mesh-tasks [...]
-    (local ctx (runtime:current-ctx))
-    (Node.aux.emit-mesh-tasks ctx ...))
+  (fn dsl.mesh.emitMeshTasks [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.emitMeshTasks ctx ...))
 
-  ; (fn dsl.loop [initial cond body loop-control]
+  ; (fn dsl.loop [initial cond body loopControl]
 
-  ;   (local loop-control (or loop-control (LoopControl)))
+  ;   (local loopControl (or loopControl (LoopControl)))
 
-  ;   (local header-block (runtime:mk-local-ctx))
-  ;   (local loop-block (runtime:mk-local-ctx))
-  ;   (local merge-block (runtime:mk-local-ctx))
+  ;   (local headerBlock (runtime:mkLocalCtx))
+  ;   (local loopBlock (runtime:mkLocalCtx))
+  ;   (local mergeBlock (runtime:mkLocalCtx))
     
-  ;   (local ctx (runtime:pop-ctx))
-  ;   (local initial-id (ctx:node-id initial))
-  ;   (ctx:instruction (Op.OpBranch header-block.id))
+  ;   (local ctx (runtime:popCtx))
+  ;   (local initial-id (ctx:nodeID initial))
+  ;   (ctx:instruction (Op.OpBranch headerBlock.id))
 
-  ;   (runtime:push-ctx header-block)
-  ;   (local cond-id (ctx:node-id cond))
-  ;   (ctx:instruction (Op.OpLoopMerge merge-block.id header-block.id loop-control))
+  ;   (runtime:pushCtx headerBlock)
+  ;   (local condID (ctx:nodeID cond))
+  ;   (ctx:instruction (Op.OpLoopMerge mergeBlock.id headerBlock.id loopControl))
   ;   (ctx:instruction (Op.OpBranchConditional ))
 
   ;   )
 
-  (fn dsl.for-loop [cond step body loop-control]
-    (local loop-control (or loop-control (LoopControl)))
+  (fn dsl.forLoop [cond step body loopControl]
+    (local loopControl (or loopControl (LoopControl)))
 
-    (local header-block (runtime:mk-local-ctx))
-    (local cond-block (runtime:mk-local-ctx))
-    (local loop-block (runtime:mk-local-ctx))
+    (local headerBlock (runtime:mkLocalCtx))
+    (local condBlock (runtime:mkLocalCtx))
+    (local loopBlock (runtime:mkLocalCtx))
     
-    (local ctx (runtime:pop-ctx))
-    (ctx:instruction (Op.OpBranch header-block.id))
+    (local ctx (runtime:popCtx))
+    (ctx:instruction (Op.OpBranch headerBlock.id))
 
-    (runtime:push-ctx cond-block)
+    (runtime:pushCtx condBlock)
     (local cond (cond))
-    (local cond-ctx (runtime:pop-ctx))
-    (local cond-id (cond-ctx:node-id cond))
+    (local condCtx (runtime:popCtx))
+    (local condID (condCtx:nodeID cond))
 
-    (runtime:push-ctx loop-block)
+    (runtime:pushCtx loopBlock)
     (body)
 
-    (local cont-block (runtime:mk-local-ctx))
-    (local merge-block (runtime:mk-local-ctx))
-    (local loop-ctx (runtime:pop-ctx))
+    (local contBlock (runtime:mkLocalCtx))
+    (local mergeBlock (runtime:mkLocalCtx))
+    (local loopCtx (runtime:popCtx))
 
-    (header-block:instruction (Op.OpLoopMerge merge-block.id cont-block.id loop-control))
-    (header-block:instruction (Op.OpBranch cond-block.id))
-    (cond-ctx:instruction (Op.OpBranchConditional cond-id loop-block.id merge-block.id))
-    (loop-ctx:instruction (Op.OpBranch cont-block.id))
+    (headerBlock:instruction (Op.OpLoopMerge mergeBlock.id contBlock.id loopControl))
+    (headerBlock:instruction (Op.OpBranch condBlock.id))
+    (condCtx:instruction (Op.OpBranchConditional condID loopBlock.id mergeBlock.id))
+    (loopCtx:instruction (Op.OpBranch contBlock.id))
 
-    (runtime:push-ctx cont-block)
+    (runtime:pushCtx contBlock)
     (step)
-    (local cont-ctx (runtime:pop-ctx))
-    (cont-ctx:instruction (Op.OpBranch header-block.id))
+    (local contCtx (runtime:popCtx))
+    (contCtx:instruction (Op.OpBranch headerBlock.id))
 
-    (runtime:push-ctx merge-block))
+    (runtime:pushCtx mergeBlock))
 
-  (fn dsl.while-loop [cond body loop-control]
-    (local loop-control (or loop-control (LoopControl)))
+  (fn dsl.whileLoop [cond body loopControl]
+    (local loopControl (or loopControl (LoopControl)))
 
-    (local header-block (runtime:mk-local-ctx))
-    (local cond-block (runtime:mk-local-ctx))
-    (local loop-block (runtime:mk-local-ctx))
-    (local cont-block (runtime:mk-local-ctx))
-    (local merge-block (runtime:mk-local-ctx))
+    (local headerBlock (runtime:mkLocalCtx))
+    (local condBlock (runtime:mkLocalCtx))
+    (local loopBlock (runtime:mkLocalCtx))
+    (local contBlock (runtime:mkLocalCtx))
+    (local mergeBlock (runtime:mkLocalCtx))
     
-    (local ctx (runtime:pop-ctx))
-    (ctx:instruction (Op.OpBranch header-block.id))
+    (local ctx (runtime:popCtx))
+    (ctx:instruction (Op.OpBranch headerBlock.id))
 
-    (header-block:instruction (Op.OpLoopMerge merge-block.id cont-block.id loop-control))
-    (header-block:instruction (Op.OpBranch cond-block.id))
+    (headerBlock:instruction (Op.OpLoopMerge mergeBlock.id contBlock.id loopControl))
+    (headerBlock:instruction (Op.OpBranch condBlock.id))
 
-    (runtime:push-ctx cond-block)
+    (runtime:pushCtx condBlock)
     (local cond (cond))
-    (local cond-ctx (runtime:pop-ctx))
-    (local cond-id (cond-ctx:node-id cond))
-    (cond-ctx:instruction (Op.OpBranchConditional cond-id loop-block.id merge-block.id))
+    (local condCtx (runtime:popCtx))
+    (local condID (condCtx:nodeID cond))
+    (condCtx:instruction (Op.OpBranchConditional condID loopBlock.id mergeBlock.id))
 
-    (runtime:push-ctx loop-block)
+    (runtime:pushCtx loopBlock)
     (body)
-    (local loop-ctx (runtime:pop-ctx))
-    (loop-ctx:instruction (Op.OpBranch cont-block.id))
+    (local loopCtx (runtime:popCtx))
+    (loopCtx:instruction (Op.OpBranch contBlock.id))
 
-    (cont-block:instruction (Op.OpBranch header-block.id))
+    (contBlock:instruction (Op.OpBranch headerBlock.id))
 
-    (runtime:push-ctx merge-block))
+    (runtime:pushCtx mergeBlock))
 
-  (fn dsl.if-then-else [cond then else]
-    (local then-block (runtime:mk-local-ctx))
-    (local else-block (runtime:mk-local-ctx))
+  (fn dsl.ifThenElse [cond then else]
+    (local thenBlock (runtime:mkLocalCtx))
+    (local elseBlock (runtime:mkLocalCtx))
     
-    (local ctx (runtime:pop-ctx))
-    (local cond-id (ctx:node-id cond))
+    (local ctx (runtime:popCtx))
+    (local condID (ctx:nodeID cond))
 
-    (runtime:push-ctx then-block)
-    (local then-result (then))
-    (local then-ctx (runtime:pop-ctx))
-    (local then-id (if then-result (then-ctx:node-id then-result)))
+    (runtime:pushCtx thenBlock)
+    (local thenResult (then))
+    (local thenCtx (runtime:popCtx))
+    (local thenID (if thenResult (thenCtx:nodeID thenResult)))
 
-    (runtime:push-ctx else-block)
-    (local else-result (else))
-    (local else-ctx (runtime:pop-ctx))
-    (local else-id (if else-result (else-ctx:node-id else-result)))
+    (runtime:pushCtx elseBlock)
+    (local elseResult (else))
+    (local elseCtx (runtime:popCtx))
+    (local elseID (if elseResult (elseCtx:nodeID elseResult)))
     
-    (local merge-block (ctx:sibling))
-    (ctx:instruction (Op.OpSelectionMerge merge-block.id (SelectionControl)))
-    (ctx:instruction (Op.OpBranchConditional cond-id then-block.id else-block.id []))
-    (then-ctx:instruction (Op.OpBranch merge-block.id))
-    (else-ctx:instruction (Op.OpBranch merge-block.id))
+    (local mergeBlock (ctx:sibling))
+    (ctx:instruction (Op.OpSelectionMerge mergeBlock.id (SelectionControl)))
+    (ctx:instruction (Op.OpBranchConditional condID thenBlock.id elseBlock.id []))
+    (thenCtx:instruction (Op.OpBranch mergeBlock.id))
+    (elseCtx:instruction (Op.OpBranch mergeBlock.id))
 
     (local result (if
-      (and (not= nil then-result) (not= nil else-result)
-           (not= :void then-result.type.kind)
-           (not= :void else-result.type.kind)
-           (= then-result.type else-result.type))
-      (do (local phi (Node.phi then-result.type [then-id then-ctx.id] [else-id else-ctx.id]))
-          (merge-block:reify-node phi)
+      (and (not= nil thenResult) (not= nil elseResult)
+           (not= :void thenResult.type.kind)
+           (not= :void elseResult.type.kind)
+           (= thenResult.type elseResult.type))
+      (do (local phi (Node.phi thenResult.type [thenID thenCtx.id] [elseID elseCtx.id]))
+          (mergeBlock:reifyNode phi)
           phi)))
 
-    (runtime:push-ctx merge-block)
+    (runtime:pushCtx mergeBlock)
     result)
 
   dsl)

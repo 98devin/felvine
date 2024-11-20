@@ -45,7 +45,7 @@
 
   (local* offset ((vec4 f32) 0 0 globalInvocation.x 0))
 
-  (mesh.set-mesh-outputs OUTPUT_VERTS OUTPUT_PRIMS)
+  (mesh.setMeshOutputs OUTPUT_VERTS OUTPUT_PRIMS)
 
   (local* mvp (* UBO.projection UBO.view UBO.model))
 
