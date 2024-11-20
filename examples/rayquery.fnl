@@ -35,4 +35,9 @@
 
   (var* rq rayQuery)
 
+  (rt.initializeRayQuery rq topLevelAS 0 0xFF inWorldPos 0.01 L 1000.0)
+  ; (rt.proceedRayQuery rq)
+
+  
+
 )

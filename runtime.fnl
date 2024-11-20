@@ -823,10 +823,18 @@
   (fn dsl.geometry.emitVertex []
     (local ctx (runtime:currentCtx))
     (Node.aux.emitVertex ctx))
+    
+  (fn dsl.geometry.emitStreamVertex [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.emitVertex ctx ...))
 
   (fn dsl.geometry.endPrimitive []
     (local ctx (runtime:currentCtx))
     (Node.aux.endPrimitive ctx))
+    
+  (fn dsl.geometry.endStreamPrimitive [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.endStreamPrimitive ctx ...))
 
   (set dsl.mesh {})
 
@@ -838,24 +846,25 @@
     (local ctx (runtime:currentCtx))
     (Node.aux.emitMeshTasks ctx ...))
 
-  ; (fn dsl.loop [initial cond body loopControl]
+  (set dsl.rt {})
 
-  ;   (local loopControl (or loopControl (LoopControl)))
+  (fn dsl.rt.initializeRayQuery [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.initializeRayQuery ctx ...))
 
-  ;   (local headerBlock (runtime:mkLocalCtx))
-  ;   (local loopBlock (runtime:mkLocalCtx))
-  ;   (local mergeBlock (runtime:mkLocalCtx))
+  (fn dsl.rt.terminateRayQuery [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.terminateRayQuery ctx ...))
     
-  ;   (local ctx (runtime:popCtx))
-  ;   (local initial-id (ctx:nodeID initial))
-  ;   (ctx:instruction (Op.OpBranch headerBlock.id))
+  (fn dsl.rt.confirmRayQueryIntersection [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.confirmRayQueryIntersection ctx ...))
+    
+  (fn dsl.rt.generateRayQueryIntersection [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.generateRayQueryIntersection ctx ...))
 
-  ;   (runtime:pushCtx headerBlock)
-  ;   (local condID (ctx:nodeID cond))
-  ;   (ctx:instruction (Op.OpLoopMerge mergeBlock.id headerBlock.id loopControl))
-  ;   (ctx:instruction (Op.OpBranchConditional ))
-
-  ;   )
+  (set dsl.rt.proceedRayQuery Node.aux.proceedRayQuery)
 
   (fn dsl.forLoop [cond step body loopControl]
     (local loopControl (or loopControl (LoopControl)))

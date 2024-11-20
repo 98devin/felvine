@@ -2493,11 +2493,11 @@
 
 (fn Node.aux.initializeRayQuery [ctx rqy acc flags cullmask origin tmin direction tmax]
   (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument 1 to initializeRayQuery must be a pointer to a ray query, got: " rqy))
+          (.. "Argument 1 to initializeRayQuery must be a pointer to a ray query, got: " (tostring rqy)))
 
-  (local acc (Node.autoderef acc))
+  (local acc (Node.aux.autoderef acc))
   (assert (and (node? acc) (= acc.type.kind :accelerationStructure))
-          (.. "Argument 2 to initializeRayQuery must be an acceleration structure, got: " acc))
+          (.. "Argument 2 to initializeRayQuery must be an acceleration structure, got: " (tostring acc)))
 
   (local vec3f32 (Type.vector (Type.float 32) 3))
 
@@ -2515,21 +2515,21 @@
 
 (fn Node.aux.terminateRayQuery [ctx rqy]
   (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument to terminateRayQuery must be a pointer to a ray query, got: " rqy))
+          (.. "Argument to terminateRayQuery must be a pointer to a ray query, got: " (tostring rqy)))
   (local rqyid (ctx:nodeID rqy))
   (ctx:instruction (Op.OpRayQueryTerminateKHR rqyid)))
 
 
 (fn Node.aux.confirmRayQueryIntersection [ctx rqy]
   (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument to confirmRayQueryIntersection must be a pointer to a ray query, got: " rqy))
+          (.. "Argument to confirmRayQueryIntersection must be a pointer to a ray query, got: " (tostring rqy)))
   (local rqyid (ctx:nodeID rqy))
   (ctx:instruction (Op.OpRayQueryConfirmIntersectionKHR rqyid)))
 
 
 (fn Node.aux.generateRayQueryIntersection [ctx rqy hitt]
   (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument 1 to generateRayQueryIntersection must be a pointer to a ray query, got: " rqy))
+          (.. "Argument 1 to generateRayQueryIntersection must be a pointer to a ray query, got: " (tostring rqy)))
   (local rqyid (ctx:nodeID rqy))
   (local hittid (ctx:nodeID (f32 hitt)))
   (ctx:instruction (Op.OpRayQueryGenerateIntersectionKHR rqyid hittid)))
@@ -2537,7 +2537,7 @@
 
 (fn Node.aux.proceedRayQuery [rqy]
   (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument to proceedRayQuery must be a pointer to a ray query, got: " rqy))
+          (.. "Argument to proceedRayQuery must be a pointer to a ray query, got: " (tostring rqy)))
   (Node.aux.op :OpRayQueryProceedKHR (Type.bool) rqy))
 
 
