@@ -51,8 +51,8 @@ meaning they will work on regular values and SPIRV Code values. Therefore we can
 at compile time (when evaluating the Felvine script) or at shader runtime, depending on the arguments given. This stage polymorphism also equates to a very strong form of _[partial evaluation][PE]_, such that meta-control flow and constant values are folded away almost entirely. This means that it is very simple to write zero-cost abstractions. In many cases though it is desirable to retain certain control flow in the generated SPIRV, and so Felvine provides counterparts to control flow operations which are reified in SPIRV.
 
 ```fnl
-(var foo 3)               ; Typical Fennel syntax to declare a mutable variable with an initial value uses `var`.
-(var* foo-code f32 := 3)  ; `var*` instead produces a SPIRV variable, and requires we provide its type as well as an optional initial assignment.
+(var foo 3)           ; Typical Fennel syntax to declare a mutable variable with an initial value uses `var`.
+(var* foo* f32 := 3)  ; `var*` instead produces a SPIRV variable, and requires we provide its type as well as an optional initial assignment.
 
 (fn double [x] (+ x x)) ; This function is written with no knowledge of SPIRV.
 
@@ -61,7 +61,7 @@ at compile time (when evaluating the Felvine script) or at shader runtime, depen
 (print (double foo)) ; => 6
 
 ; It will produce a representation of SPIRV performing an OpFAdd when called with a staged value.
-(print (double foo-code)) ; => (expr f32 OpFAdd)
+(print (double foo*)) ; => (expr f32 OpFAdd)
 ```
 
 Examples are provided in the `examples/` folder to understand how this works. 
@@ -97,13 +97,13 @@ To test whether a metavalue represents a type, you can use the `type?` function,
 | Vectors | `(Type.vector element count)` | N/A | `(vec2 f32)` `(vec3 i32)` `(vec4 f16)` etc. | `vec2` `ivec3` `f16vec4` etc. |
 | Matrices | `(Type.matrix element rows cols)` | N/A | `(mat4 f32)` `(mat2x3 f32)` `(mat3 f64)` etc. | `mat4` `mat2x3` `dmat3` etc. |
 | Pointers | `(Type.pointer element storageClass)` | `[*Storage elem]` where some abbreviations are supported, e.g. `[*Input (vec3 f32)]` or `[*P 3 f32]` for a physical buffer pointer to an array of 3 floats. | N/A | Mostly N/A, `layout(buffer_reference)` applies to some cases. |
-| Structs | `(Type.struct field-types field-names)` | `{ name1 type1 name2 (type2 decorations...) ... }` | N/A | `struct` |
+| Structs | `(Type.struct fieldTypes fieldNames)` | `{ name1 type1 name2 (type2 decorations...) ... }` | N/A | `struct` |
 | Images | `(image ...opts elem?)` e.g. `(image :sampled :2D :Array i32)` or `(image :storage :Buffer :Rg32f)` | N/A | N/A | `iimage2DArray`, `layout(rg32f) textureBuffer` etc. |
-| Sampled Images | `(Type.sampled image-type)` or  `(sampled-image ...opts elem?)` e.g. `(sampled-image :3D)` | N/A | N/A | `sampler2DArray` `sampler3D` etc. |
+| Sampled Images | `(Type.sampled imageType)` or  `(sampledImage ...opts elem?)` e.g. `(sampledImage :3D)` | N/A | N/A | `sampler2DArray` `sampler3D` etc. |
 | Samplers | `(Type.sampler)` | N/A | `sampler` | `sampler` |
-| Functions | `(Type.function return-type [param-types...])` | N/A | N/A | N/A |
-| Acceleration Structures | `(Type.acceleration-structure)` | N/A | `acceleration-structure` | `accelerationStructureEXT` |
-| Ray Queries | `(Type.ray-query)` | N/A | `ray-query` | `rayQueryEXT` |
+| Functions | `(Type.function returnType [paramTypes...])` | N/A | N/A | N/A |
+| Acceleration Structures | `(Type.accelerationStructure)` | N/A | `accelerationStructure` | `accelerationStructureEXT` |
+| Ray Queries | `(Type.rayQuery)` | N/A | `rayQuery` | `rayQueryEXT` |
 
 
 ### Types as constructors
@@ -136,13 +136,13 @@ Other types of values (images, functions, etc.) cannot be constructed like this 
 | Minimum/Maximum ignoring NaN | `(nmin x y)` `(nmax x y)` `(nmin x y z w ...)` | ? |
 | Derivative operations | `(d/dx v)` `(d/dy v)` `(fwidth v)` | `dFdx(v)` `dFdy(v)` `fwidth(v)` |
 | Lerp/Mix functions | `(mix x0 x1 t)` `(step edge t)` `(smoothstep e0 e1 t)` | `mix(x0, x1, t)` `step(edge, t)` `smoothstep(e0, e1, t)` |
-| Rounding/adjusting functions | `(round v)` `(round-even v)` `(ceil v)` `(floor v)` `(trunc v)` `(fract v)` | `round(v)` `roundEven(v)` `ceil(v)` `floor(v)` `trunc(v)` `fract(v)` |
+| Rounding/adjusting functions | `(round v)` `(roundEven v)` `(ceil v)` `(floor v)` `(trunc v)` `(fract v)` | `round(v)` `roundEven(v)` `ceil(v)` `floor(v)` `trunc(v)` `fract(v)` |
 | Absolute value/Sign | `(abs x)` `(sign x)` | `abs(x)` `sign(x)` |
-| Unit conversions | `(degrees-to-radians deg)` `(radians-to-degrees rad)` | `radians(deg)` `degrees(rad)` |
+| Unit conversions | `(degreesToRadians deg)` `(radiansToDegrees rad)` | `radians(deg)` `degrees(rad)` |
 | Trigonometry | `(sin theta)` `(cos theta)` `(tan theta)` `(arcsin theta)` `(arccos theta)` `(arctan theta)` `(sinh theta)` `(cosh theta)` `(tanh theta)` `(arcsinh theta)` `(arccosh theta)` `(arctanh theta)` | `sin(theta)` `cos(theta)` `tan(theta)` `asin(theta)` `acos(theta)` `atan(theta)` `sinh(theta)` `cosh(theta)` `tanh(theta)` `asinh(theta)` `acosh(theta)` `atanh(theta)` |
-| Other floating operations | `(exp x)` `(exp2 x)` `(log x)` `(ln x)` `(log2 x)` `(sqrt x)` `(inverse-sqrt x)` `(ldexp l exp)` `(local (l exp) (frexp x))` | `exp(x)` `exp2(x)` `log(x)` `log(x)` `log2(x)` `sqrt(x)` `inversesqrt(x)` `ldexp(l, exp)` `l = frexp(x, exp)` |
-| Vector and Matrix operations | `(dot v1 v2)` `(distance v1 v2)` `(norm v)` `(length v)` `(normalize v)` `(face-forward v i ref)` `(reflect v n)` `(refract v n eta)` `(det m)` `(determinant m)` `(invert m)` `(transpose m)` | `dot(v1, v2)` `distance(v1, v2)` `length(v)` `length(v)` `normalize(v)` `faceforward(v, i, ref)` `reflect(v, n)` `refract(v, n, eta)` `determinant(m)` `determinant(m)` `inverse(m)` `transpose(m)` |
-| Floating pack/unpack operations | `(pack-unorm2x16 v)` `(pack-snorm2x16 v)` `(pack-half2x16 v)` `(pack-unorm4x8 v)` `(pack-snorm4x8 v)` `(pack-double2x32 v)` `(unpack-unorm2x16 i)` `(unpack-snorm2x16 i)` `(unpack-half2x16 i)` `(unpack-unorm4x8 i)` `(unpack-snorm4x8 i)` `(unpack-double2x32 d)` | `packUnorm2x16(v)` `packSnorm2x16(v)` `packHalf2x16(v)` `packUnorm4x8(v)` `packSnorm4x8(v)` `packDouble2x32(v)` `unpackUnorm2x16(i)` `unpackSnorm2x16(i)` `unpackHalf2x16(i)` `unpackUnorm4x8(i)` `unpackSnorm4x8(i)` `unpackDouble2x32(d)` | 
+| Other floating operations | `(exp x)` `(exp2 x)` `(log x)` `(ln x)` `(log2 x)` `(sqrt x)` `(inverseSqrt x)` `(ldexp l exp)` `(local (l exp) (frexp x))` | `exp(x)` `exp2(x)` `log(x)` `log(x)` `log2(x)` `sqrt(x)` `inversesqrt(x)` `ldexp(l, exp)` `l = frexp(x, exp)` |
+| Vector and Matrix operations | `(dot v1 v2)` `(distance v1 v2)` `(norm v)` `(length v)` `(normalize v)` `(faceForward v i ref)` `(reflect v n)` `(refract v n eta)` `(det m)` `(determinant m)` `(invert m)` `(transpose m)` | `dot(v1, v2)` `distance(v1, v2)` `length(v)` `length(v)` `normalize(v)` `faceforward(v, i, ref)` `reflect(v, n)` `refract(v, n, eta)` `determinant(m)` `determinant(m)` `inverse(m)` `transpose(m)` |
+| Floating pack/unpack operations | `(packUnorm2x16 v)` `(packSnorm2x16 v)` `(packHalf2x16 v)` `(packUnorm4x8 v)` `(packSnorm4x8 v)` `(packDouble2x32 v)` `(unpackUnorm2x16 i)` `(unpackSnorm2x16 i)` `(unpackHalf2x16 i)` `(unpackUnorm4x8 i)` `(unpackSnorm4x8 i)` `(unpackDouble2x32 d)` | `packUnorm2x16(v)` `packSnorm2x16(v)` `packHalf2x16(v)` `packUnorm4x8(v)` `packSnorm4x8(v)` `packDouble2x32(v)` `unpackUnorm2x16(i)` `unpackSnorm2x16(i)` `unpackHalf2x16(i)` `unpackUnorm4x8(i)` `unpackSnorm4x8(i)` `unpackDouble2x32(d)` | 
 
 
 ## Declarations and special syntax
@@ -238,7 +238,7 @@ Therefore Felvine offers some very convenient alternatives. Declaring a uniform 
 ```fennel
 (uniform (<set> <binding>) <Name> <Type> <...Decorations...>) ; for images (including texel buffers) or uniform buffers
 (buffer  (<set> <binding>) <Name> <Type> <...Decorations...>) ; for storage buffers
-(push-constant <Name> <Type>) ; for push constants (Type must be a struct)
+(pushConstant <Name> <Type>) ; for push constants (Type must be a struct)
 ```
 
 `Type` can be a struct to represent a buffer, or it can be an opaque type like an image or acceleration structure, or an array of one of these. For example:
@@ -255,16 +255,16 @@ Therefore Felvine offers some very convenient alternatives. Declaring a uniform 
   materials [Material]
 } NonWritable)
 
-(uniform (0 1) MaterialTextures [1024 (sampled-image :2D)])
+(uniform (0 1) MaterialTextures [1024 (sampledImage :2D)])
 
 (buffer (0 2) GeometryData [128 {
   positions [(vec3 f32)]
 }])
 
-(push-constant CameraData { 
+(pushConstant CameraData { 
   position (vec3 f32)
   transform ((mat4x3 f32) RowMajor)
-  inv-transform (mat3x4 f32)
+  invTransform (mat3x4 f32)
   fov f32
 })
 ```
@@ -280,7 +280,7 @@ Most of the time, Felvine offers convenient places to put SPIRV decorations on t
 
 Any SPIRV value or type can be passed to `(decorate <value/type> ...)` with any number of decorations given. The type or value will then be given those decorations in the SPIRV output. Consult the SPIRV documentation for guidelines on what decorations should apply to what types or values.
 
-For struct types, the `decorate-member` form can also be used to place a decoration on a particular field. For example, if we have `(type* MatX { x (mat3 f32) })` we could decide we want the field x to be row major. We can achieve this with `(decorate-member MatX 0 RowMajor)`. Field indices are 0-based.
+For struct types, the `decorateMember` form can also be used to place a decoration on a particular field. For example, if we have `(type* MatX { x (mat3 f32) })` we could decide we want the field x to be row major. We can achieve this with `(decorateMember MatX 0 RowMajor)`. Field indices are 0-based.
 
 ### Functions
 
@@ -290,7 +290,7 @@ The body of the function can be a sequence of statements/expressions. The last e
 
 ```fennel
 ; rotate a vector `v` by a quaternion `q`
-(fn* quat_mult (vec3 f32) [(q (vec4 f32)) (v (vec3 f32))]
+(fn* quatMult (vec3 f32) [(q (vec4 f32)) (v (vec3 f32))]
     (var c (cross v q.xyz))
     (set c (cross (+ c (* q.w v)) q.xyz))
     (+ v (* 2.0 c)))
@@ -331,7 +331,7 @@ The following are notional examples of how this is used to configure various sha
 
 The body of the entrypoint is a great place to declare global variables that should not be shared like input/outputs. It is also where control flow begins.
 
-If for whatever reason you need to defer the choice of execution modes to after the declaration of the entrypoint, this can be done. Simply call `(execution-mode <name> ...<execution mode(s)>...)` with either the same name used for the entrypoint given as a string, or the entrypoint itself as the first parameter.
+If for whatever reason you need to defer the choice of execution modes to after the declaration of the entrypoint, this can be done. Simply call `(executionMode <name> ...<execution mode(s)>...)` with either the same name used for the entrypoint given as a string, or the entrypoint itself as the first parameter.
 
 ### Conditional Control Flow
 
@@ -358,7 +358,7 @@ Felvine includes `when*` as an analog to Fennel's `when` syntax allowing simpler
 This could also be viewed as a one-iteration-max while loop.
 
 ```fennel
-(var* v i32 := (some-function x))
+(var* v i32 := (someFunction x))
 
 (when* (gte? v 128)  ; When condition holds,
     (set* v 127)     ; do this,
@@ -441,7 +441,7 @@ For example:
 })
 
 (var* data Data := ...) ; Suppose we have a value of this type already.
-(var* other-pointer-value [*P { x f32 y f32 }] := ...) ; and suppose we have another pointer.
+(var* otherPointerValue [*P { x f32 y f32 }] := ...) ; and suppose we have another pointer.
 
 (local v data.vector)    ; Field access can use `.` when left hand side is an identifier
 (local v (data :vector)) ; Field access can also be written `(struct :field)` for other cases or dynamic fields.
@@ -460,12 +460,12 @@ For example:
 ; For example, only pointers-to-arrays can be dynamically indexed, while direct array indices must be constants.
 ; Usually the default semantics will be the ones you want; indexing will preserve the outermost pointer.
 
-(local a0-ptr (data.array 0)) ; Function* f32, using dynamic indexing (happens to be constant here).
+(local a0ptr (data.array 0)) ; Function* f32, using dynamic indexing (happens to be constant here).
 (local a0 (data.array.* 0)) ; f32, using constant indexing. Worse choice since (in principle) it copies the array.
 
 ; Felvine auto-dereferences when needed so usually you will not need to do this, but all these are valid and equivalent:
-(local b (+ a0-ptr.* 10)) ; trailing .* to dereference
-(local b (+ a0-ptr 10))   ; implicit dereference before addition
+(local b (+ a0ptr.* 10)) ; trailing .* to dereference
+(local b (+ a0ptr 10))   ; implicit dereference before addition
 (local b (+ a0 10))       ; a0 already is a plain f32 value
 
 ; Because the leading pointer type is preserved,
@@ -480,7 +480,7 @@ For example:
 (local px (p :* :x)) ; (p :*) is equivalent to p.*
 
 ; Without a trailing .*, we are setting the pointer value itself here, not its contents.
-(set* data.pointer other-pointer-value)
+(set* data.pointer otherPointerValue)
 
 ; Here we set the pointed-to value. Note that px is also implicitly dereferenced when casting it to f32 here.
 (set* data.pointer.* { :x px :y px })
@@ -493,12 +493,12 @@ accessors to buffer memory when using the `bufferDeviceAddress` vulkan feature.
 
 This enables indirection in data structures, as well, in which case often the data types
 being declared could be self referential or mutually recursive in some way. Felvine provides
-the `ref-types*` declaration to more easily define such families of types all at once.
+the `refTypes*` declaration to more easily define such families of types all at once.
 
 For example:
 
 ```fennel
-(ref-types*
+(refTypes*
   Node { 
     left Node
     right Node
@@ -506,8 +506,7 @@ For example:
   }
   Tree { 
     root Node
-    first-child Node
-    last-child Node
+    size u32
   })
 ```
 
