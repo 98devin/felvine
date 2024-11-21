@@ -18,6 +18,7 @@
       : ImageOperands
       : MemoryModel
       : MemoryAccess
+      : MemorySemantics
       : Op
       : Scope
       : SourceLanguage
@@ -160,6 +161,7 @@
     {:kind :int : signed}
       (do (local arg ...)
           (if (node? arg) (Node.convert arg tycon)
+              (enum? arg) (Node.constant tycon arg.value)
               (= (type arg) :number)
                 (do (assert (or signed (>= arg 0)) (.. "Unsigned integer must be >= 0, got: " arg))
                     (Node.constant tycon (math.floor arg)))
@@ -169,6 +171,7 @@
     {:kind :float}
       (do (local arg ...)
           (if (node? arg) (Node.convert arg tycon)
+              (enum? arg) (Node.constant tycon arg.value)
               (= (type arg) :number) (Node.constant tycon arg)
               (error (.. "Cannot construct float from argument: " (fennel.view arg)))))
               ; TODO: Allow specifying a particular bit pattern via a string?
@@ -251,6 +254,9 @@
                 (Type.aux.structFromParts tycon arg)))
             (Type.aux.structFromParts tycon args)))
     
+    {:kind :void}
+      nil
+
     other
       (do (local arg ...)
           (assert (node? arg) (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary))
@@ -637,6 +643,13 @@
   (assert ix (.. "Type is not a struct or has no member `" memberName "`: " type.summary))
   ix)
 
+(local bool (Type.bool))
+(local u32 (Type.int 32 false))
+(local f32 (Type.float 32))
+(local i32 (Type.int 32 true))
+(local u64 (Type.int 64 false))
+(local f64 (Type.float 64))
+(local i64 (Type.int 64 true))
 
 ; node structure
 ; .kind          :expr | :phi | :function | :variable | :param | :constant | :specConstant
@@ -673,6 +686,16 @@
 
 (set Node.constantImpl {})
 (set Node.specConstantImpl {})
+
+(fn Node.aux.enumValue [enum v]
+  (if 
+    (node? v) (do (assert (and (= v.kind :constant) (= v.type.kind :int))
+                          (.. "Cannot interpret value as " enum.name " " (tostring v))) (u32 v))
+    (enum? v) (do (assert (= (enum? v) enum.name)
+                          (.. "Cannot interpret value as " enum.name " " (tostring v))) (u32 v.value))
+    (= (type v) :string) (u32 (. enum v :value))
+    (= (type v) :number) (u32 v)
+    (error (.. "Cannot interpret value as " enum.name " " (tostring v)))))
 
 (fn Node.aux.commonNodeKind [kind1 kind2]
   (case (values kind1 kind2)
@@ -1707,15 +1730,6 @@
     (.. "Cannot sample image with non-sampler, got: " (tostring sampler)))
   (Node.aux.op :OpSampledImage (Type.sampled image.type) image sampler))
 
-
-(local bool (Type.bool))
-(local u32 (Type.int 32 false))
-(local f32 (Type.float 32))
-(local i32 (Type.int 32 true))
-(local u64 (Type.int 64 false))
-(local f64 (Type.float 64))
-(local i64 (Type.int 64 true))
-
 (local constOffsetsType (Type.array (Type.vector i32 2) 4))
 
 (local imageCoordDims
@@ -2332,7 +2346,6 @@
 
   (Node.aux.op :OpGroupNonUniformRotateKHR value.type SubgroupScope value delta cluster))
 
-
 ;
 ; Atomics
 ;
@@ -2348,13 +2361,10 @@
     (.. "Atomically accessed value must be scalar integer, got: " type.summary))
 
 (fn Node.aux.atomicScopeValue [scope]
-  (local scope (if (enum? scope) scope.value (. Scope scope :value)))
-  (u32 scope))
+  (Node.aux.enumValue Scope scope))
 
 (fn Node.aux.atomicMemorySemanticsValue [memorySemantics]
-  (assert (= (enum? memorySemantics) :MemorySemantics)
-    (.. "Expected MemorySemantics value, got: " (tostring memorySemantics)))
-  (u32 memorySemantics.value))
+  (Node.aux.enumValue MemorySemantics memorySemantics))
 
 (fn Node.atomic.load [ptr scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
@@ -2491,19 +2501,24 @@
 ; Ray tracing instructions
 ; 
 
-(fn Node.aux.initializeRayQuery [ctx rqy acc flags cullmask origin tmin direction tmax]
+(fn Node.aux.validateRayQuery [rqy name]
   (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument 1 to initializeRayQuery must be a pointer to a ray query, got: " (tostring rqy)))
+          (.. "Argument to " name " must be a pointer to a ray query, got: " (tostring rqy))))
+
+(fn Node.aux.initializeRayQuery [ctx rqy acc flags cullmask origin tmin direction tmax]
+  (Node.aux.validateRayQuery rqy :initializeRayQuery)
 
   (local acc (Node.aux.autoderef acc))
   (assert (and (node? acc) (= acc.type.kind :accelerationStructure))
           (.. "Argument 2 to initializeRayQuery must be an acceleration structure, got: " (tostring acc)))
 
+  (local flags (Node.aux.enumValue spirv.RayFlags flags))
+
   (local vec3f32 (Type.vector (Type.float 32) 3))
 
   (local rqyid (ctx:nodeID rqy))
   (local accid (ctx:nodeID acc))
-  (local flagsid (ctx:nodeID (u32 flags)))
+  (local flagsid (ctx:nodeID flags))
   (local maskid  (ctx:nodeID (u32 cullmask)))
   (local originid (ctx:nodeID (vec3f32 origin)))
   (local directionid (ctx:nodeID (vec3f32 direction)))
@@ -2512,36 +2527,56 @@
 
   (ctx:instruction (Op.OpRayQueryInitializeKHR rqyid accid flagsid maskid originid tminid directionid tmaxid)))
 
-
 (fn Node.aux.terminateRayQuery [ctx rqy]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument to terminateRayQuery must be a pointer to a ray query, got: " (tostring rqy)))
+  (Node.aux.validateRayQuery rqy :terminateRayQuery)
   (local rqyid (ctx:nodeID rqy))
   (ctx:instruction (Op.OpRayQueryTerminateKHR rqyid)))
 
-
 (fn Node.aux.confirmRayQueryIntersection [ctx rqy]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument to confirmRayQueryIntersection must be a pointer to a ray query, got: " (tostring rqy)))
+  (Node.aux.validateRayQuery rqy :confirmRayQueryIntersection)
   (local rqyid (ctx:nodeID rqy))
   (ctx:instruction (Op.OpRayQueryConfirmIntersectionKHR rqyid)))
 
-
 (fn Node.aux.generateRayQueryIntersection [ctx rqy hitt]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument 1 to generateRayQueryIntersection must be a pointer to a ray query, got: " (tostring rqy)))
+  (Node.aux.validateRayQuery rqy :generateRayQueryIntersection)
   (local rqyid (ctx:nodeID rqy))
   (local hittid (ctx:nodeID (f32 hitt)))
   (ctx:instruction (Op.OpRayQueryGenerateIntersectionKHR rqyid hittid)))
 
+; This is only done this way because proceedRayQuery can be used often while ignoring its result.
+(fn Node.aux.proceedRayQuery [ctx rqy]
+  (Node.aux.validateRayQuery rqy :proceedRayQuery)
+  (local node (Node.aux.op :OpRayQueryProceedKHR (Type.bool) rqy))
+  (ctx:nodeID node)
+  node)
 
-(fn Node.aux.proceedRayQuery [rqy]
-  (assert (and (node? rqy) (= rqy.type.kind :pointer) (= rqy.type.elem.kind :rayQuery))
-          (.. "Argument to proceedRayQuery must be a pointer to a ray query, got: " (tostring rqy)))
-  (Node.aux.op :OpRayQueryProceedKHR (Type.bool) rqy))
+(fn Node.aux.getRayQueryIntersectionType [rqy intersection]
+  (Node.aux.validateRayQuery rqy :getRayQueryIntersectionType)
+  (local intersection (Node.aux.enumValue spirv.RayQueryIntersection intersection))
+  (Node.aux.op :OpRayQueryGetIntersectionTypeKHR u32 rqy intersection))
 
+(fn Node.aux.getRayQueryTMin [rqy]
+  (Node.aux.validateRayQuery rqy :getRayQueryTMin)
+  (Node.aux.op :OpRayQueryGetRayTMinKHR f32 rqy))
+  
+(fn Node.aux.getRayQueryFlags [rqy]
+  (Node.aux.validateRayQuery rqy :getRayQueryFlags)
+  (Node.aux.op :OpRayQueryGetRayFlagsKHR u32 rqy))
 
-; (fn Node.aux.)
+(fn nodeRayQueryIntersectionOp [{ :op op :name name :return return }]
+  (fn [rqy intersection]
+    (Node.aux.validateRayQuery rqy name)
+    (local intersection (Node.aux.enumValue spirv.RayQueryIntersection intersection))
+    (Node.aux.op op return rqy intersection)))
+
+(set Node.aux.getRayQueryIntersectionT
+  (nodeRayQueryIntersectionOp { :op :OpRayQueryGetIntersectionTKHR :name :getRayQueryIntersectionT :return f32 }))
+  
+; (set Node.aux.getRayQueryIntersectionT
+;   (nodeRayQueryIntersectionOp { :op :OpRayQueryGetIntersectionTKHR :name :getRayQueryIntersectionT :return f32 }))
+  
+; (set Node.aux.getRayQueryIntersectionT
+;   (nodeRayQueryIntersectionOp { :op :OpRayQueryGetIntersectionTKHR :name :getRayQueryIntersectionT :return f32 }))
 
 
 ;
@@ -2549,34 +2584,20 @@
 ; 
 
 (fn Node.aux.controlBarrier [ctx executionScope memoryScope memorySemantics]
-  (local executionScope 
-    (if (enum? executionScope) executionScope.value
-        (= (type executionScope) :string) (. Scope executionScope :value)
-        executionScope))
-  (local memoryScope 
-    (if (enum? memoryScope) memoryScope.value
-        (= (type memoryScope) :string) (. Scope memoryScope :value)
-        memoryScope))
-  (local memorySemantics
-    (if (= (enum? memorySemantics) :MemorySemantics) memorySemantics.valueUnion
-        (error "Must provide MemorySemantics flags value explicitly for barrier")))
+  (local executionScope (Node.aux.enumValue Scope executionScope))
+  (local memoryScope (Node.aux.enumValue Scope memoryScope))
+  (local memorySemantics (Node.aux.enumValue MemorySemantics memorySemantics))
   (ctx:instruction 
-    (Op.OpControlBarrier (ctx:nodeID (u32 executionScope)) 
-                         (ctx:nodeID (u32 memoryScope))
-                         (ctx:nodeID (u32 memorySemantics)))))
+    (Op.OpControlBarrier (ctx:nodeID executionScope) 
+                         (ctx:nodeID memoryScope)
+                         (ctx:nodeID memorySemantics))))
 
 (fn Node.aux.memoryBarrier [ctx memoryScope memorySemantics]
-  (local memoryScope 
-    (if (enum? memoryScope) memoryScope.value
-        (= (type memoryScope) :string (. Scope memoryScope :value)
-        memoryScope)))
-  (local memorySemantics
-    (if (= (enum? memorySemantics) :MemorySemantics) memorySemantics.valueUnion
-        (error "Must provide MemorySemantics flags value explicitly for barrier")))
+  (local memoryScope (Node.aux.enumValue Scope memoryScope))
+  (local memorySemantics (Node.aux.enumValue MemorySemantics memorySemantics))
   (ctx:instruction 
     (Op.OpMemoryBarrier (ctx:nodeID (u32 memoryScope)) 
                         (ctx:nodeID (u32 memorySemantics)))))
-
 
 ;
 ; ExtGLSL operations

@@ -188,9 +188,9 @@
   mt)
 
 ; bits-enumerant-list structure
-; .valueUnion   number
-; .getTag       table[string, enumerant-value]
-; .getValue     table[number, enumerant-value]
+; .value         number
+; .getTag        table[string, enumerant-value]
+; .getValue      table[number, enumerant-value]
 ; .constituents  list[enumerant] # sorted by value
 
 (fn bitsEnumerantListMT [enum]
@@ -219,7 +219,7 @@
       (getExtensions e exts)))
 
   (fn mt.__serialize [buffer v]
-    (serializeFmt "I" buffer v.valueUnion)
+    (serializeFmt "I" buffer v.value)
     (each [_ constituent (ipairs v.constituents)]
       (serialize buffer constituent)))
 
@@ -296,7 +296,8 @@
   
     (local constituentInputs [])
     (each [_ arg (ipairs [...])]
-      (assert (= (enum? arg) enum.name) (.. "Incorrect type used in enum constructor for: " enum.name))
+      (local arg (if (= (enum? arg) enum.name) arg (. enum arg)))
+      ; (assert (= (enum? arg) enum.name) (.. "Incorrect type usd in enum constructor for: " enum.name))
       (if arg.constituents
         (each [_ constituent (ipairs arg.constituents)] (table.insert constituentInputs constituent))
         (table.insert constituentInputs arg)))
@@ -307,7 +308,7 @@
     (local getTag
       (collect [_ e (ipairs constituentInputs)]
         e.tag e))
-    (local valueUnion
+    (local value
       (accumulate [union 0 _ e (ipairs constituentInputs)]
         (bor union e.value)))
     (local constituents
@@ -315,7 +316,7 @@
     (table.sort constituents)
 
     (local o
-      { : valueUnion
+      { : value
         : getValue
         : getTag
         : constituents

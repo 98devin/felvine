@@ -7,6 +7,8 @@
 (capability Shader RayQueryKHR)
 (extension :SPV_KHR_ray_query)
 
+(local { : RayFlags : RayQueryCommittedIntersectionType } spirv)
+
 (local v3f (vec3 f32))
 
 (var* inNormal   v3f Input (Location 0))
@@ -35,9 +37,8 @@
 
   (var* rq rayQuery)
 
-  (rt.initializeRayQuery rq topLevelAS 0 0xFF inWorldPos 0.01 L 1000.0)
-  ; (rt.proceedRayQuery rq)
+  (rt.initializeRayQuery rq topLevelAS :TerminateOnFirstHitKHR 0xFF inWorldPos 0.01 L 1000.0)
+  (rt.proceedRayQuery rq)
 
-  
-
-)
+  (when* (eq? (rt.getRayQueryIntersectionType rq 1) RayQueryCommittedIntersectionType.RayQueryCommittedIntersectionTriangleKHR)
+    (set* outFragColor (* outFragColor 0.1))))

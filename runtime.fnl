@@ -770,8 +770,8 @@
   (fn dsl.barrier []
     (dsl.controlBarrier :Workgroup :Workgroup
       (MemorySemantics
-        MemorySemantics.SequentiallyConsistent
-        MemorySemantics.WorkgroupMemory)))
+        :SequentiallyConsistent
+        :WorkgroupMemory)))
 
   (fn dsl.controlBarrier [...]
     (local ctx (runtime:currentCtx))
@@ -797,9 +797,13 @@
     (local returnNode (body (table.unpack fun.params)))
     (local ctx (runtime:popCtx))
 
-    (if (and (not= returnNode nil) (not= returnNode.type.kind :void))
-      (ctx:instruction (Op.OpReturnValue (ctx:nodeID (return returnNode))))
-      (ctx:instruction Op.OpReturn))
+    (if (not= nil returnNode)
+      (if (not= return.kind :void)
+        (ctx:instruction (Op.OpReturnValue (ctx:nodeID (return returnNode))))
+        (do (ctx:nodeID returnNode) (ctx:instruction Op.OpReturn)))
+      (if (not= return.kind :void)
+        (error (.. "Function " name " has return type of " return.summary " but actual value returned was nil!"))
+        (ctx:instruction Op.OpReturn)))
     
     (ctx:instruction (Op.OpName fun.id name))
     (Node.function fun))
@@ -864,7 +868,11 @@
     (local ctx (runtime:currentCtx))
     (Node.aux.generateRayQueryIntersection ctx ...))
 
-  (set dsl.rt.proceedRayQuery Node.aux.proceedRayQuery)
+  (fn dsl.rt.proceedRayQuery [...]
+    (local ctx (runtime:currentCtx))
+    (Node.aux.proceedRayQuery ctx ...))
+
+  (set dsl.rt.getRayQueryIntersectionType Node.aux.getRayQueryIntersectionType)
 
   (fn dsl.forLoop [cond step body loopControl]
     (local loopControl (or loopControl (LoopControl)))
