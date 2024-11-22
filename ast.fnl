@@ -257,6 +257,14 @@
     {:kind :void}
       nil
 
+    {:kind :accelerationStructure}
+      (do (local arg ...)
+          (assert (and (node? arg)
+                       (or (= arg.type (Type.int 64 false))
+                           (= arg.type (Type.vector (Type.int 32 false) 2))))
+                  (.. "Acceleration structure cannot be cast from: " (tostring arg)))
+          (Node.aux.op :OpConvertUToAccelerationStructureKHR (Type.accelerationStructure) arg))
+
     other
       (do (local arg ...)
           (assert (node? arg) (.. "Cannot cast value to type: " (tostring arg) " " tycon.summary))
@@ -2563,6 +2571,14 @@
   (Node.aux.validateRayQuery rqy :getRayQueryFlags)
   (Node.aux.op :OpRayQueryGetRayFlagsKHR u32 rqy))
 
+(fn Node.aux.getRayQueryWorldRayDirection [rqy]
+  (Node.aux.validateRayQuery rqy :getRayQueryWorldRayDirection)
+  (Node.aux.op :OpRayQueryGetWorldRayDirectionKHR (Type.vector f32 3) rqy))
+
+(fn Node.aux.getRayQueryWorldRayOrigin [rqy]
+  (Node.aux.validateRayQuery rqy :getRayQueryWorldRayOrigin)
+  (Node.aux.op :OpRayQueryGetWorldRayOriginKHR (Type.vector f32 3) rqy))
+
 (fn nodeRayQueryIntersectionOp [{ :op op :name name :return return }]
   (fn [rqy intersection]
     (Node.aux.validateRayQuery rqy name)
@@ -2572,12 +2588,78 @@
 (set Node.aux.getRayQueryIntersectionT
   (nodeRayQueryIntersectionOp { :op :OpRayQueryGetIntersectionTKHR :name :getRayQueryIntersectionT :return f32 }))
   
-; (set Node.aux.getRayQueryIntersectionT
-;   (nodeRayQueryIntersectionOp { :op :OpRayQueryGetIntersectionTKHR :name :getRayQueryIntersectionT :return f32 }))
+(set Node.aux.getRayQueryIntersectionInstanceCustomIndex
+  (nodeRayQueryIntersectionOp { :op :OpRayQueryGetIntersectionInstanceCustomIndexKHR :name :getRayQueryIntersectionInstanceCustomIndex :return u32 }))
   
-; (set Node.aux.getRayQueryIntersectionT
-;   (nodeRayQueryIntersectionOp { :op :OpRayQueryGetIntersectionTKHR :name :getRayQueryIntersectionT :return f32 }))
+(set Node.aux.getRayQueryIntersectionInstanceShaderBindingTableRecordOffset
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionInstanceShaderBindingTableRecordOffsetKHR
+      :name :getRayQueryIntersectionInstanceShaderBindingTableRecordOffset
+      :return u32 
+    }))
+    
+(set Node.aux.getRayQueryIntersectionGeometryIndex
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionGeometryIndexKHR
+      :name :getRayQueryIntersectionGeometryIndex
+      :return u32 
+    }))
+    
+(set Node.aux.getRayQueryIntersectionPrimitiveIndex
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionPrimitiveIndexKHR
+      :name :getRayQueryIntersectionPrimitiveIndex
+      :return u32 
+    }))
+    
+(set Node.aux.getRayQueryIntersectionBarycentrics
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionBarycentricsKHR
+      :name :getRayQueryIntersectionBarycentrics
+      :return (Type.vector f32 2) 
+    }))
 
+(set Node.aux.getRayQueryIntersectionFrontFace
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionFrontFaceKHR
+      :name :getRayQueryIntersectionFrontFace
+      :return bool 
+    }))
+
+(set Node.aux.getRayQueryIntersectionCandidateAABBOpaque
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionCandidateAABBOpaqueKHR
+      :name :getRayQueryIntersectionCandidateAABBOpaque
+      :return bool 
+    }))
+
+(set Node.aux.getRayQueryIntersectionObjectRayDirection
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionObjectRayDirectionKHR
+      :name :getRayQueryIntersectionObjectRayDirection
+      :return (Type.vector f32 3)
+    }))
+
+(set Node.aux.getRayQueryIntersectionObjectRayOrigin
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionObjectRayOriginKHR
+      :name :getRayQueryIntersectionObjectRayOrigin
+      :return (Type.vector f32 3)
+    }))
+
+(set Node.aux.getRayQueryIntersectionObjectToWorld
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionObjectToWorldKHR
+      :name :getRayQueryIntersectionObjectToWorld
+      :return (Type.matrix f32 4 3)
+    }))
+
+(set Node.aux.getRayQueryIntersectionWorldToObject
+  (nodeRayQueryIntersectionOp
+    { :op :OpRayQueryGetIntersectionWorldToObjectKHR
+      :name :getRayQueryIntersectionWorldToObject
+      :return (Type.matrix f32 4 3)
+    }))
 
 ;
 ; Barriers

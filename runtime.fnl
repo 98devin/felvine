@@ -345,7 +345,8 @@
       :function function
       :oplabel (Op.OpLabel id)
       :opphi []
-      :body [] 
+      :body []
+      :terminated false
     })
   (table.insert function.blocks b)
   (setmetatable b Block.mt))
@@ -357,23 +358,27 @@
   (self.env:extInstID extInst))
 
 (fn Block.instruction [self op]
-  (case op.tag
-    :OpFunctionParameter
-      (table.insert self.function.opparams op)
-    :OpVariable
-      (match (. op.operands 3)
-        StorageClass.Function 
-          (table.insert self.function.opvariables op)
-        _ (do 
-            (self.env:instruction op)
-            (tset self.function.interface (. op.operands 2) true)))
-    (where tag
-      (or (tag:match "OpConstant") (tag:match "OpSpecConstant") (tag:match "OpType")))
-        (self.env:instruction op)
-    (where (or :OpName :OpMemberName))
-        (self.env:instruction op)
-    :OpPhi (table.insert self.opphi op)
-    _ (table.insert self.body op)))
+  (when (not self.terminated)
+    (case op.tag
+      :OpFunctionParameter
+        (table.insert self.function.opparams op)
+      :OpVariable
+        (match (. op.operands 3)
+          StorageClass.Function 
+            (table.insert self.function.opvariables op)
+          _ (do 
+              (self.env:instruction op)
+              (tset self.function.interface (. op.operands 2) true)))
+      (where tag
+        (or (tag:match "OpConstant") (tag:match "OpSpecConstant") (tag:match "OpType")))
+          (self.env:instruction op)
+      (where (or :OpName :OpMemberName))
+          (self.env:instruction op)
+      :OpPhi (table.insert self.opphi op)
+      _ (table.insert self.body op))))
+
+(fn Block.terminateBlock [self]
+  (tset self.terminated true))
 
 (fn Block.freshID [self]
   (self.env:freshID))
@@ -389,14 +394,6 @@
 
 (fn Block.reifyType [self type id]
   (self.env:reifyType type id))
-
-; (fn Block.reifyType [self type id]
-;   (or (self.env:typeID? type)
-;     (do
-;       (when id (tset self.env.typeIDs type.summary id))
-;       (local newTypeID (or (type:reify self id) (self:freshID)))
-;       (tset self.env.typeIDs type.summary newTypeID)
-;       newTypeID)))
 
 (fn Block.nodeID? [self node]
   (self.env:nodeID? node))
@@ -454,6 +451,10 @@
   (local ctx (or (self:currentCtx) self.env))
   (ctx:instruction op))
 
+(fn Runtime.terminateBlock [self]
+  (local ctx (self:currentCtx))
+  (ctx:terminateBlock))
+
 (fn Runtime.nodeID? [self node]
   (self.env:nodeID? node))
 
@@ -477,19 +478,10 @@
 (fn Runtime.reifyType [self type id]
   (self.env:reifyType type id))
 
-; (fn Runtime.reifyType [self type id]
-;   (local ctx (or (self:currentCtx) self.env))
-;   (or (ctx:typeID? type)
-;     (do
-;       (when id (tset self.env.typeIDs type.summary id))
-;       (local newTypeID (or (type:reify ctx id) (ctx:freshID)))
-;       (tset self.env.typeIDs type.summary newTypeID)
-;       newTypeID)))
-
-(fn Block.decorateID [self id ...]
+(fn Runtime.decorateID [self id ...]
   (self.env:decorateID id ...))
   
-(fn Block.decorateMemberID [self id member ...]
+(fn Runtime.decorateMemberID [self id member ...]
   (self.env:decorateMemberID id member ...))
   
 (fn Runtime.mkLocalCtx [self]
@@ -872,7 +864,21 @@
     (local ctx (runtime:currentCtx))
     (Node.aux.proceedRayQuery ctx ...))
 
+  (set dsl.rt.getRayQueryWorldRayOrigin Node.aux.getRayQueryWorldRayOrigin)
+  (set dsl.rt.getRayQueryWorldRayDirection Node.aux.getRayQueryWorldRayDirection)
   (set dsl.rt.getRayQueryIntersectionType Node.aux.getRayQueryIntersectionType)
+  (set dsl.rt.getRayQueryIntersectionT Node.aux.getRayQueryIntersectionT)
+  (set dsl.rt.getRayQueryIntersectionInstanceCustomIndex Node.aux.getRayQueryIntersectionInstanceCustomIndex)
+  (set dsl.rt.getRayQueryIntersectionInstanceShaderBindingTableRecordOffset Node.aux.getRayQueryIntersectionInstanceShaderBindingTableRecordOffset)
+  (set dsl.rt.getRayQueryIntersectionGeometryIndex Node.aux.getRayQueryIntersectionGeometryIndex)
+  (set dsl.rt.getRayQueryIntersectionPrimitiveIndex Node.aux.getRayQueryIntersectionPrimitiveIndex)
+  (set dsl.rt.getRayQueryIntersectionBarycentrics Node.aux.getRayQueryIntersectionBarycentrics)
+  (set dsl.rt.getRayQueryIntersectionFrontFace Node.aux.getRayQueryIntersectionFrontFace)
+  (set dsl.rt.getRayQueryIntersectionCandidateAABBOpaque Node.aux.getRayQueryIntersectionCandidateAABBOpaque)
+  (set dsl.rt.getRayQueryIntersectionObjectRayDirection Node.aux.getRayQueryIntersectionObjectRayDirection)
+  (set dsl.rt.getRayQueryIntersectionObjectRayOrigin Node.aux.getRayQueryIntersectionObjectRayOrigin)
+  (set dsl.rt.getRayQueryIntersectionObjectToWorld Node.aux.getRayQueryIntersectionObjectToWorld)
+  (set dsl.rt.getRayQueryIntersectionWorldToObject Node.aux.getRayQueryIntersectionWorldToObject)
 
   (fn dsl.forLoop [cond step body loopControl]
     (local loopControl (or loopControl (LoopControl)))
