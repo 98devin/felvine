@@ -124,6 +124,12 @@
        (neq? c d) (if* (lte? a c) c d)
        (any? (eq? b e)) c d))
 
+(fn* testSwitchOperations f32 [(a i32) (b f32)]
+  (switch* a
+    [0 1 2 3] b
+    [4 7 11]  (* 2 b)
+    :default  (* 3 b)))
+
 (fn* testLoopOperations f32 [(a i32) (b i32)]
   (var* j i32 := 0)
 
@@ -133,13 +139,15 @@
   (for* [(i i32) j 10]
     (set* j (+ j i)))
 
-
   (for< [(i i32) j 10]
     (set* j (- j i)))
 
-
   (for* [(i i32) j (* 2 j) 2]
     (set* j (+ j i)))
+
+  ; the condition itself can contain other control flow too
+  (while* (if* (lt? j b) (gt? j a) (gt? j b))
+    (set* j (+ j 1)))
 
   j)
 
@@ -333,24 +341,24 @@
     (uv2DArray (vec3 u32))
     (uvCubeArray (vec4 u32)) ]
 
-  (+ (fetch im1D         uv1D)
-     (fetch utb           uv1D)
-     (fetch stb           uv1D)
-     (fetch im2D         uv2D)
-     (fetch im3D         uv3D)
-     (fetch im1DArray   uv1DArray)
-     (fetch im2DArray   uv2DArray)
+  (+ (fetch im1D      uv1D)
+     (fetch utb       uv1D)
+     (fetch stb       uv1D)
+     (fetch im2D      uv2D)
+     (fetch im3D      uv3D)
+     (fetch im1DArray uv1DArray)
+     (fetch im2DArray uv2DArray)
      
-     (fetch im1D         uv1D         :Lod 1)
-     (fetch im2D         uv2D         :Lod 1)
-     (fetch im3D         uv3D         :Lod 1)
-     (fetch im1DArray   uv1DArray   :Lod 1)
-     (fetch im2DArray   uv2DArray   :Lod 1)
+     (fetch im1D      uv1D      :Lod 1)
+     (fetch im2D      uv2D      :Lod 1)
+     (fetch im3D      uv3D      :Lod 1)
+     (fetch im1DArray uv1DArray :Lod 1)
+     (fetch im2DArray uv2DArray :Lod 1)
      
-     (fetch storageIm1D         uv1D)
-     (fetch storageIm2D         uv2D)
-     (fetch storageIm3D         uv3D)
-     (fetch storageImCube       uvCube)
+     (fetch storageIm1D        uv1D)
+     (fetch storageIm2D        uv2D)
+     (fetch storageIm3D        uv3D)
+     (fetch storageImCube      uvCube)
      (fetch storageIm1DArray   uv1DArray)
      (fetch storageIm2DArray   uv2DArray)
      (fetch storageImCubeArray uvCubeArray)))

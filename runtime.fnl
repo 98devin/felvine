@@ -375,10 +375,24 @@
       (where (or :OpName :OpMemberName))
           (self.env:instruction op)
       :OpPhi (table.insert self.opphi op)
-      _ (table.insert self.body op))))
+      _ (table.insert self.body op))
+    (case op.tag
+      (where 
+        (or :OpBranch 
+            :OpBranchConditional
+            :OpReturn
+            :OpReturnValue
+            :OpSwitch
+            :OpKill
+            :OpUnreachable
+            :OpTerminateInvocation
+            :OpIgnoreIntersectionKHR
+            :OpTerminateRayKHR
+            ))
+        (self:terminateBlock))))
 
 (fn Block.terminateBlock [self]
-  (tset self.terminated true))
+  (set self.terminated true))
 
 (fn Block.freshID [self]
   (self.env:freshID))
@@ -776,6 +790,7 @@
   (fn dsl.defineFunction [return name params body]
     (local funty (Type.function return params))
     (local fun (Function.new runtime.env funty name))
+    (runtime.env:instruction (Op.OpName fun.id name))
 
     (local ctx (Block.new fun))
     (ctx:reifyType funty) ; make sure this exists
@@ -797,7 +812,6 @@
         (error (.. "Function " name " has return type of " return.summary " but actual value returned was nil!"))
         (ctx:instruction Op.OpReturn)))
     
-    (ctx:instruction (Op.OpName fun.id name))
     (Node.function fun))
 
   (fn dsl.entrypoint [name executionmodel body]
@@ -880,12 +894,30 @@
   (set dsl.rt.getRayQueryIntersectionObjectToWorld Node.aux.getRayQueryIntersectionObjectToWorld)
   (set dsl.rt.getRayQueryIntersectionWorldToObject Node.aux.getRayQueryIntersectionWorldToObject)
 
+  (fn dsl.rt.ignoreIntersection []
+    (Node.aux.ignoreIntersection (runtime:currentCtx)))
+
+  (fn dsl.rt.terminateRay []
+    (Node.aux.terminateRay (runtime:currentCtx)))
+
+  (fn dsl.rt.executeCallable [...]
+    (Node.aux.executeCallable (runtime:currentCtx) ...))
+
+  (fn dsl.rt.reportIntersection [...]
+    (Node.aux.reportIntersection (runtime:currentCtx) ...))
+
+  (fn dsl.rt.traceRay [...]
+    (Node.aux.traceRay (runtime:currentCtx) ...))
+
+  ;
+  ; control flow
+  ;
+
   (fn dsl.forLoop [cond step body loopControl]
     (local loopControl (or loopControl (LoopControl)))
 
     (local headerBlock (runtime:mkLocalCtx))
     (local condBlock (runtime:mkLocalCtx))
-    (local loopBlock (runtime:mkLocalCtx))
     
     (local ctx (runtime:popCtx))
     (ctx:instruction (Op.OpBranch headerBlock.id))
@@ -895,12 +927,13 @@
     (local condCtx (runtime:popCtx))
     (local condID (condCtx:nodeID cond))
 
+    (local loopBlock (ctx:sibling))
     (runtime:pushCtx loopBlock)
     (body)
-
-    (local contBlock (runtime:mkLocalCtx))
-    (local mergeBlock (runtime:mkLocalCtx))
     (local loopCtx (runtime:popCtx))
+
+    (local contBlock (ctx:sibling))
+    (local mergeBlock (ctx:sibling))
 
     (headerBlock:instruction (Op.OpLoopMerge mergeBlock.id contBlock.id loopControl))
     (headerBlock:instruction (Op.OpBranch condBlock.id))
@@ -917,22 +950,23 @@
   (fn dsl.whileLoop [cond body loopControl]
     (local loopControl (or loopControl (LoopControl)))
 
-    (local headerBlock (runtime:mkLocalCtx))
-    (local condBlock (runtime:mkLocalCtx))
-    (local loopBlock (runtime:mkLocalCtx))
-    (local contBlock (runtime:mkLocalCtx))
-    (local mergeBlock (runtime:mkLocalCtx))
-    
     (local ctx (runtime:popCtx))
+    (local headerBlock (ctx:sibling))
     (ctx:instruction (Op.OpBranch headerBlock.id))
 
-    (headerBlock:instruction (Op.OpLoopMerge mergeBlock.id contBlock.id loopControl))
-    (headerBlock:instruction (Op.OpBranch condBlock.id))
-
+    (local condBlock (ctx:sibling))
     (runtime:pushCtx condBlock)
     (local cond (cond))
     (local condCtx (runtime:popCtx))
     (local condID (condCtx:nodeID cond))
+
+    (local loopBlock (ctx:sibling))
+    (local contBlock (ctx:sibling))
+    (local mergeBlock (ctx:sibling))
+
+    (headerBlock:instruction (Op.OpLoopMerge mergeBlock.id contBlock.id loopControl))
+    (headerBlock:instruction (Op.OpBranch condBlock.id))
+
     (condCtx:instruction (Op.OpBranchConditional condID loopBlock.id mergeBlock.id))
 
     (runtime:pushCtx loopBlock)
@@ -944,6 +978,82 @@
 
     (runtime:pushCtx mergeBlock))
 
+  (fn makePhiNodeIfPossible [mergeBlock blocksAndResults]
+    (var resultType nil)
+    (var phiPossible true)
+
+    (each [_ [block result] (ipairs blocksAndResults)]
+      (when (and phiPossible (node? result))
+        (if (= nil resultType) (set resultType result.type)
+            (and resultType.primitive result.type.primitive)
+              (set resultType (Type.aux.primCommonSupertype resultType result.type))
+            (set phiPossible (= resultType result.type)))))
+    
+    (if (not phiPossible) nil (do
+      (local phiArguments [])
+      (each [_ [block result] (ipairs blocksAndResults) :until (not phiPossible)]
+        (local (valid result) (pcall resultType result))
+        (when (not valid) (set phiPossible false))
+        (when valid 
+          (local resultID (block:nodeID result))
+          (table.insert phiArguments [resultID block.id])))
+
+      (if phiPossible
+        (let [phi (Node.phi resultType (table.unpack phiArguments))]
+          (mergeBlock:nodeID phi)
+          phi)))))
+
+  (fn dsl.switchCase [disc targets]
+
+    (local disc (Node.aux.autoderef disc))
+    (assert (and (node? disc) (= disc.type.kind :int))
+            (.. "Switch block discriminant must be a node of integer type, got: " (tostring disc)))
+
+    (local ctx (runtime:popCtx))
+    (local discID (ctx:nodeID disc))
+
+    (local seenCases {})
+    (local allCasePairs [])
+    (local allFinalBodyBlocks [])
+
+    (var defaultCase nil)
+
+    (each [_ target (ipairs targets)]
+      (local { : cases : body } target)
+
+      (local bodyBlock (ctx:sibling))
+      (runtime:pushCtx bodyBlock)
+      (local bodyResult (body))
+      (local bodyCtx (runtime:popCtx))
+      (table.insert allFinalBodyBlocks [bodyCtx bodyResult])
+      
+      (each [_ caseExp (ipairs cases)]
+        (if (= caseExp :default)
+          (do (set defaultCase bodyBlock.id)
+              (set seenCases.default true))
+          (do (local caseExp (disc.type caseExp))
+              (assert (= caseExp.kind :constant)
+                      (.. "Switch block case expression must be a constant, got: " (tostring caseExp)))
+              (assert (not (. seenCases caseExp.constant))
+                      (.. "Same value cannot be used in multiple switch cases: " (tostring caseExp.constant)))
+              (tset seenCases caseExp.constant true)
+              (table.insert allCasePairs [caseExp.constant bodyBlock.id])))))
+
+    (local mergeBlock (ctx:sibling))
+    (when (= nil defaultCase)
+      (set defaultCase mergeBlock.id))
+
+    (local result (makePhiNodeIfPossible mergeBlock allFinalBodyBlocks))
+    
+    (ctx:instruction (Op.OpSelectionMerge mergeBlock.id (SelectionControl)))
+    (each [_ [bodyCtx] (ipairs allFinalBodyBlocks)]
+      (bodyCtx:instruction (Op.OpBranch mergeBlock.id)))
+
+    (ctx:instruction (Op.OpSwitch discID defaultCase allCasePairs))
+
+    (runtime:pushCtx mergeBlock)
+    result)
+
   (fn dsl.ifThenElse [cond then else]
     (local thenBlock (runtime:mkLocalCtx))
     (local elseBlock (runtime:mkLocalCtx))
@@ -954,27 +1064,31 @@
     (runtime:pushCtx thenBlock)
     (local thenResult (then))
     (local thenCtx (runtime:popCtx))
-    (local thenID (if thenResult (thenCtx:nodeID thenResult)))
+    (local thenResult (if (not thenCtx.terminated) thenResult))
 
     (runtime:pushCtx elseBlock)
     (local elseResult (else))
     (local elseCtx (runtime:popCtx))
-    (local elseID (if elseResult (elseCtx:nodeID elseResult)))
-    
+    (local elseResult (if (not elseCtx.terminated) elseResult))
+
+    (assert (or (= nil thenResult elseResult) (node? thenResult) (node? elseResult))
+            (.. "At least one branch of if* must return a node value for type to be determined, got: "
+                (tostring thenResult) ", " (tostring elseResult)))
+
+    (when (and (node? thenResult) (node? elseResult))
+      (assert (= thenResult.type.kind elseResult.type.kind)
+              (.. "if* branches do not return nodes of the same type: " thenResult.type.summary ", " elseResult.type.summary)))
+
     (local mergeBlock (ctx:sibling))
-    (ctx:instruction (Op.OpSelectionMerge mergeBlock.id (SelectionControl)))
+    (when (not (or thenCtx.terminated elseCtx.terminated))
+      (ctx:instruction (Op.OpSelectionMerge mergeBlock.id (SelectionControl))))
+
+    (local result (makePhiNodeIfPossible mergeBlock
+      [ [thenCtx thenResult] [elseCtx elseResult ] ]))
+
     (ctx:instruction (Op.OpBranchConditional condID thenBlock.id elseBlock.id []))
     (thenCtx:instruction (Op.OpBranch mergeBlock.id))
     (elseCtx:instruction (Op.OpBranch mergeBlock.id))
-
-    (local result (if
-      (and (not= nil thenResult) (not= nil elseResult)
-           (not= :void thenResult.type.kind)
-           (not= :void elseResult.type.kind)
-           (= thenResult.type elseResult.type))
-      (do (local phi (Node.phi thenResult.type [thenID thenCtx.id] [elseID elseCtx.id]))
-          (mergeBlock:reifyNode phi)
-          phi)))
 
     (runtime:pushCtx mergeBlock)
     result)

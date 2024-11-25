@@ -164,6 +164,25 @@
     _ `(dsl.ifThenElse ,cond1 (fn [] ,then1) (fn [] (if* ,else1/cond2 ,...)))))
 
 
+(fn switch* [disc ...]
+  (local targets [])
+
+  (assert-compile (= 0 (% (length ...) 2))
+    (.. "switch* must have an even number of cases, got: " (tostring (length ...))))
+
+  (fn go [...]
+    (case ...
+      (exp body)
+        (do (if (sequence? exp)
+                (table.insert targets `{ :cases ,exp   :body (fn [] ,body) })
+                (table.insert targets `{ :cases [,exp] :body (fn [] ,body )}))
+            (go (select 3 ...)))))
+
+  (go ...)
+
+  `(dsl.switchCase ,disc [,(table.unpack targets)]))
+
+
 (fn when* [cond ...]
   `(dsl.ifThenElse ,cond (fn [] ,...) (fn [])))
 
@@ -237,6 +256,7 @@
     (do (local v# ,value)
         (when (node? v#)
           (dsl.name v# ,(tostring name))
+          (dsl.reify v#)
           ,(decorate `v# ...))
         v#)))
 
@@ -411,6 +431,8 @@
 
 {
  : if* 
+ : switch*
+ :match* switch*
  : when*
  : while*
  : for*

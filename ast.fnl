@@ -47,6 +47,7 @@
 ; .size      ?number  ; in bytes, if not opaque
 ; .alignment ?number  ; in bytes, if not opaque
 ; .kind      :void | :bool | :int | :float | :vector | :matrix | :image | :sampler | :sampledImage | :array | :pointer | :function | :struct
+; .primitive bool
 
 ; type-info structure :int
 ; .bits      number
@@ -468,6 +469,7 @@
       :alignment size
       :signed signed
       :opaque false
+      :primitive true
     }))
 
 (fn Type.float [b]
@@ -478,6 +480,7 @@
       :size size
       :alignment size
       :opaque false
+      :primitive true
     }))
 
 (fn Type.vector [elem count]
@@ -489,6 +492,7 @@
         :opaque false
         :elem elem
         :count count
+        :primitive elem.primitive
       })))
 
 (fn Type.array [elem count]
@@ -2660,6 +2664,79 @@
       :name :getRayQueryIntersectionWorldToObject
       :return (Type.matrix f32 4 3)
     }))
+
+(fn Node.aux.ignoreIntersection [ctx]
+  (ctx:instruction Op.OpIgnoreIntersectionKHR))
+
+(fn Node.aux.terminateRay [ctx]
+  (ctx:instruction Op.OpTerminateRayKHR))
+
+(fn Node.aux.executeCallable [ctx sbtid callableData]
+  (assert 
+    (and (node? callableData)
+         (= callableData.kind :variable)
+         (or (= callableData.storage StorageClass.CallableDataKHR)
+             (= callableData.storage StorageClass.IncomingCallableDataKHR)))
+    (.. "Argument to executeCallable must be a variable with storage of "
+        "CallableDataKHR or IncomingCallableDataKHR, got:" 
+        (tostring callableData)))
+
+  (local sbtid (u32 (Node.aux.autoderef sbtid)))
+
+  (ctx:instruction
+    (Op.OpExecuteCallableKHR
+      (ctx:nodeID sbtid)
+      (ctx:nodeID callableData))))
+
+(fn Node.aux.reportIntersection [ctx hitT hitKind]
+  (local hitKind (u32 hitKind))
+  (local hitT (f32 (Node.aux.autoderef hitT)))
+  (local node (Node.aux.op :OpReportIntersectionKHR bool hitT hitKind))
+  (ctx:nodeID node)
+  node)
+
+(fn Node.aux.traceRay
+  [ctx acc flags mask sbtOffset sbtStride missIndex rayOrigin rayTMin rayDirection rayTMax payload]
+  
+  (local acc (Node.aux.autoderef acc))
+  (assert (and (node? acc) (= acc.type.kind :accelerationStructure))
+          (.. "Argument 1 of tracyRay must be an acceleration structure, got: " (tostring acc)))
+
+  (assert 
+    (and (node? payload)
+         (= payload.kind :variable)
+         (or (= payload.storage StorageClass.RayPayloadKHR)
+             (= payload.storage StorageClass.IncomingRayPayloadKHR)))
+    (.. "Payload of traceRay must be a variable with storage of "
+        "RayPayloadKHR or IncomingRayPayloadKHR, got:" 
+        (tostring payload)))
+
+  (local flags (Node.aux.enumValue spirv.RayFlags flags))
+  (local mask (u32 (Node.aux.autoderef mask)))
+  (local sbtOffset (u32 (Node.aux.autoderef sbtOffset)))
+  (local sbtStride (u32 (Node.aux.autoderef sbtStride)))
+  (local missIndex (u32 (Node.aux.autoderef missIndex)))
+
+  (local vec3f (Type.vector f32 3))
+  (local rayOrigin (vec3f (Node.aux.autoderef rayOrigin)))
+  (local rayDirection (vec3f (Node.aux.autoderef rayDirection)))
+
+  (local rayTMin (f32 (Node.aux.autoderef rayTMin)))
+  (local rayTMax (f32 (Node.aux.autoderef rayTMax)))    
+  
+  (ctx:instruction
+    (Op.OpTraceRayKHR
+      (ctx:nodeID acc)
+      (ctx:nodeID flags)
+      (ctx:nodeID mask)
+      (ctx:nodeID sbtOffset)
+      (ctx:nodeID sbtStride)
+      (ctx:nodeID missIndex)
+      (ctx:nodeID rayOrigin)
+      (ctx:nodeID rayTMin)
+      (ctx:nodeID rayDirection)
+      (ctx:nodeID rayTMax)
+      (ctx:nodeID payload))))
 
 ;
 ; Barriers

@@ -25,7 +25,6 @@
 
 
 (entrypoint main Fragment [OriginUpperLeft] 
-
   (local N (normalize inNormal))
   (local L (normalize inLightVec))
   (local V (normalize inViewVec))
