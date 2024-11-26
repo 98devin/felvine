@@ -116,6 +116,7 @@ using this same construction procedure. Some operations that require values to b
 
 Other types of values (images, functions, etc.) cannot be constructed like this and must be initialized by declarations or implicitly by descriptor bindings.
 
+
 ### Functions and operators
 
 | Operation | Felvine syntax | GLSL Syntax |
@@ -135,6 +136,20 @@ Other types of values (images, functions, etc.) cannot be constructed like this 
 | Vector and Matrix operations | `(dot v1 v2)` `(distance v1 v2)` `(norm v)` `(length v)` `(normalize v)` `(faceForward v i ref)` `(reflect v n)` `(refract v n eta)` `(det m)` `(determinant m)` `(invert m)` `(transpose m)` | `dot(v1, v2)` `distance(v1, v2)` `length(v)` `length(v)` `normalize(v)` `faceforward(v, i, ref)` `reflect(v, n)` `refract(v, n, eta)` `determinant(m)` `determinant(m)` `inverse(m)` `transpose(m)` |
 | Floating pack/unpack operations | `(packUnorm2x16 v)` `(packSnorm2x16 v)` `(packHalf2x16 v)` `(packUnorm4x8 v)` `(packSnorm4x8 v)` `(packDouble2x32 v)` `(unpackUnorm2x16 i)` `(unpackSnorm2x16 i)` `(unpackHalf2x16 i)` `(unpackUnorm4x8 i)` `(unpackSnorm4x8 i)` `(unpackDouble2x32 d)` | `packUnorm2x16(v)` `packSnorm2x16(v)` `packHalf2x16(v)` `packUnorm4x8(v)` `packSnorm4x8(v)` `packDouble2x32(v)` `unpackUnorm2x16(i)` `unpackSnorm2x16(i)` `unpackHalf2x16(i)` `unpackUnorm4x8(i)` `unpackSnorm4x8(i)` `unpackDouble2x32(d)` | 
 
+### SPIRV Enum Values
+
+Certain ray tracing functions for example have inputs or outputs which represent values of a SPIRV Enum type, or a combination of flags. These values can be provided either by name as a string,
+qualified by the name of the enum they are an element of, or in the case of flags, given in a list form to represent the sum of the specified values. The following examples assume that you have imported
+the enum type from the `spirv` module, or qualified it as `spirv.EnumName`.
+
+| Enum | Felvine Syntax | GLSL Syntax |
+| - | - | - |
+| RayFlags | `:OpaqueKHR` `RayFlags.OpaqueKHR` `(RayFlags :OpaqueKHR)` | `gl_RayFlagsOpaqueEXT` |
+| RayFlags (multiple) | `(RayFlags :OpaqueKHR :TerminateOnFirstHitKHR)` | `gl_RayFlagsOpaqueEXT + gl_RayFlagsTerminateOnFirstHitEXT` |
+| RayQueryCommittedIntersectionType | `:RayQueryCommittedIntersectionNoneKHR` `RayQueryCommittedIntersectionType.RayQueryCommittedIntersectionNoneKHR` | `gl_RayQueryCommittedIntersectionNoneEXT` |
+
+Any form can be used as an argument (in the appropriate places) to functions like `initializeRayQuery`, `traceRay`, or `getRayQueryIntersectionType`.
+Outside of this use case, the qualified form may be more useful as it allows retrieving the underlying integer value as well in the `.value` field.
 
 ## Declarations and special syntax
 
