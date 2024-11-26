@@ -166,9 +166,10 @@
 
 (fn switch* [disc ...]
   (local targets [])
-
-  (assert-compile (= 0 (% (length ...) 2))
-    (.. "switch* must have an even number of cases, got: " (tostring (length ...))))
+  
+  (local nargs (select :# ...))
+  (assert-compile (= 0 (% nargs 2))
+    (.. "switch* must have an even number of cases, got: " (tostring nargs)))
 
   (fn go [...]
     (case ...
@@ -432,7 +433,6 @@
 {
  : if* 
  : switch*
- :match* switch*
  : when*
  : while*
  : for*

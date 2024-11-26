@@ -1,5 +1,5 @@
 
-# Felvine
+<img src="felvine.png" height="150px" width="480px">
 
 Felvine is a **F**unctional, **E**mbedded **L**anguage for SPIR**V** (specifically, Vulkan) shaders.
 
@@ -33,22 +33,18 @@ and performs fewer redundant operations than unoptimized results from glslang. O
 ## Motivation
 
 Before reading, you may want to reference the [Fennel] and [Lua] languages (which are fundamentally simple), and you should be familiar
-with the basics of Vulkan shaders. This section will not serve as an exhaustive index of possible techniques, but should help explain why Felvine's approach
+with the basics of [Vulkan] shaders. Knowledge of [SPIRV] would benefit the reader as well. This section will not serve as an exhaustive index of possible techniques, but should help explain why Felvine's approach
 is useful and powerful. 
 
 It helps to have some mental model of the way that Felvine scripts execute that allows them to generate code. Felvine is an example of
 _staged metaprogramming_ in which the "metaprogram" (in this case written in Fennel) has the job of generating code in the next "stage" of runtime
 (in this case, SPIRV to run on the GPU). However, although Felvine includes a library for serializing SPIRV which could do this job directly, it is more complicated to use and would be flexible only at the expense of ergonomics if this was the end of the story. 
 
-Felvine instead provides syntax which allows you to write natural code, and automatically generate appropriate SPIRV. This syntax forms a
-domain specific language in which shader concepts can be naturally expressed and manipulated in a first class way. But how? We have an interpreter for code (Fennel), but it produces values in the metalanguage (i.e. `(+ 1 2)` becomes `3`, not SPIRV code performing an addition). The trick is to take advantage of the fact that our metalanguage is dynamically typed, meaning that functions like `+` are, from a point of view, polymorphic. We can _overload_
-the addition operation to work on two different "kinds" of values, then:
+Felvine instead provides syntax which allows you to write natural code, and automatically generate appropriate SPIRV. This syntax forms a domain specific language in which shader concepts can be naturally expressed and manipulated in a first class way. But how? We have an interpreter for code (Fennel), but it produces values in the metalanguage (i.e. `(+ 1 2)` becomes `3`, not SPIRV code performing an addition). The trick is to take advantage of the fact that our metalanguage is dynamically typed, meaning that functions like `+` are in fact polymorphic. We can _overload_ the addition operation to work on two different kinds of values, then:
 - regular lua numbers (implementation provided by lua)
 - staged SPIRV values (representing SPIRV Code which will eventually _produce_ a number which is not yet known)
 
-Lua provides many extension points in the form of what it calls "metamethods" which allow a very broad class of operations to be made _stage-polymorphic_,
-meaning they will work on regular values and SPIRV Code values. Therefore we can write a function `(fn [x y] (+ x y))` and it will automagically work either
-at compile time (when evaluating the Felvine script) or at shader runtime, depending on the arguments given. This stage polymorphism also equates to a very strong form of _[partial evaluation][PE]_, such that meta-control flow and constant values are folded away almost entirely. This means that it is very simple to write zero-cost abstractions. In many cases though it is desirable to retain certain control flow in the generated SPIRV, and so Felvine provides counterparts to control flow operations which are reified in SPIRV.
+Lua provides many extension points in the form of what it calls "metamethods" which allow a very broad class of operations to be made _stage-polymorphic_, meaning they will work on regular values and SPIRV Code values. Therefore we can write a function `(fn [x y] (+ x y))` and it will either compute a result at compile time (when evaluating the Felvine script) or stage a computation to occur at shader runtime, depending on the arguments given. This stage polymorphism also equates to a very strong form of _[partial evaluation][PE]_, such that meta-control-flow and constant values are folded away almost entirely. This means that it is very simple to write low- or zero-cost abstractions.
 
 ```fnl
 (var foo 3)           ; Typical Fennel syntax to declare a mutable variable with an initial value uses `var`.
@@ -64,15 +60,11 @@ at compile time (when evaluating the Felvine script) or at shader runtime, depen
 (print (double foo*)) ; => (expr f32 OpFAdd)
 ```
 
-Examples are provided in the `examples/` folder to understand how this works. 
+Examples are provided in the `examples/` folder to understand how this works and to show how different kinds of shaders can be written. Each of them have been based on an analogous GLSL shader for comparison.
 
-The upshot of all this in the end is: you can write a script that looks like regular code.
-Certain aspects of it are annotated to indicate that they produce specifically a SPIRV value, internally called a `Node`.
-You can use values like this in math expressions and access their fields etc. in a natural way because of polymorphism.
-The script is executed during the equivalent of a "compile time" and collects information about the SPIRV calculations to be performed.
+The upshot of all this in the end is: you can write a script that looks like regular code. Certain aspects of it are annotated to indicate that they produce specifically a SPIRV value, internally called a `Node`. You can use values like this in math expressions and access their fields etc. in a natural way because of polymorphism. The script is executed during the equivalent of a "compile time" and collects information about the SPIRV calculations to be performed.
 
-In this way, SPIRV `fn*` functions (including your shader entrypoint) are persisted in the final shader module, but
-regular functions in Fennel are specialised away and operate like very powerful compile time metaprograms, and Fennel _macros_ allow creating new and convenient syntax.
+In this way, SPIRV `fn*` functions (including your shader entrypoint) are persisted in the final shader module, but regular functions in Fennel are specialised away and operate like very powerful compile time metaprograms, and Fennel _macros_ allow creating new and convenient syntax.
 
 ## Features Index
 
@@ -98,8 +90,8 @@ To test whether a metavalue represents a type, you can use the `type?` function,
 | Matrices | `(Type.matrix element rows cols)` | N/A | `(mat4 f32)` `(mat2x3 f32)` `(mat3 f64)` etc. | `mat4` `mat2x3` `dmat3` etc. |
 | Pointers | `(Type.pointer element storageClass)` | `[*Storage elem]` where some abbreviations are supported, e.g. `[*Input (vec3 f32)]` or `[*P 3 f32]` for a physical buffer pointer to an array of 3 floats. | N/A | Mostly N/A, `layout(buffer_reference)` applies to some cases. |
 | Structs | `(Type.struct fieldTypes fieldNames)` | `{ name1 type1 name2 (type2 decorations...) ... }` | N/A | `struct` |
-| Images | `(image ...opts elem?)` e.g. `(image :sampled :2D :Array i32)` or `(image :storage :Buffer :Rg32f)` | N/A | N/A | `iimage2DArray`, `layout(rg32f) textureBuffer` etc. |
-| Sampled Images | `(Type.sampled imageType)` or  `(sampledImage ...opts elem?)` e.g. `(sampledImage :3D)` | N/A | N/A | `sampler2DArray` `sampler3D` etc. |
+| Images | `(image ...opts)` | N/A | `(image :texture :2D :Array)` `(image :storage :Buffer :Rg32i)` etc. | `texture2DArray`, `layout(rg32i) iimageBuffer` etc. |
+| Combined Sampler/Images | `(Type.sampled imageType)` or `(sampledImage ...opts)` | N/A | `(sampledImage :2D :Array)` `(sampledImage :Depth :2D)` `(sampledImage :3D)` | `sampler2DArray` `sampler2DShadow` `sampler3D` etc. |
 | Samplers | `(Type.sampler)` | N/A | `sampler` | `sampler` |
 | Functions | `(Type.function returnType [paramTypes...])` | N/A | N/A | N/A |
 | Acceleration Structures | `(Type.accelerationStructure)` | N/A | `accelerationStructure` | `accelerationStructureEXT` |
@@ -117,13 +109,12 @@ using this same construction procedure. Some operations that require values to b
 | - | - |
 | Booleans | `(bool true)` `(bool false)` |
 | Numbers | `(u32 1)` `(f32 3)` `(i32 x)` |
-| Arrays | Either a single list, or vararg list e.g. `((array i32 3) [1 2 3])` `((array i32) 1 2 3 4 5)` Using a runtime-length array type will infer the length based on the arguments provided. |
-| Vectors | A number of vector or scalar arguments which provide enough components. `((vec2 f32) 1.0 2.0)` `((vec4 f32) v.xyz 1.0)` Or, a list of scalars i.e. `((vec3 i32) [0 1 2])`. |
-| Matrices | Some number of column vectors or column vector initializers, e.g. `((mat2 f32) [0 1] v.zw)` |
-| Structs | A table with the correct fields; given `(type* Pos { x f32 y 32 })`, one can write `(local position (Pos { :x 10 :y 10 }))`
+| Arrays | Either a single list, or individual arguments e.g. `((array i32 3) [1 2 3])` or `((array i32) 1 2 3 4 5)`. Using a runtime-length array type will infer the length based on the arguments provided. |
+| Vectors | A number of vector, list, or scalar arguments which provide enough components. `((vec2 f32) 1.0 2.0)` `((vec4 f32) v.xyz 1.0)` `((vec3 i32) [0 1 2])` |
+| Matrices | Some number of column vectors or lists representing column vector initializers, e.g. `((mat2 f32) [0 1] v.zw)` |
+| Structs | A table with the correct fields; given `(type* Pos { x f32 y 32 })`, one can write `(Pos { :x 10 :y 10 })`
 
 Other types of values (images, functions, etc.) cannot be constructed like this and must be initialized by declarations or implicitly by descriptor bindings.
-
 
 ### Functions and operators
 
@@ -199,7 +190,7 @@ NB: By default, Felvine does not know what the target environment support for fe
 - Vulkan features and/or extensions (`--vk-features`), and 
 - Vulkan target version (`--vk-version`)
 
-When specifying these, Felvine can automatically infer support for SPIRV features from the relevant Vulkan extensions or features that are available. If you are running Felvine in your graphics program, these could straightforwardly correspond to the _actual_ available set of extensions in the environment.
+When specifying these, Felvine can automatically infer support for SPIRV features from the relevant Vulkan extensions or features that are available. If you are running Felvine embedded within a graphics program, these could straightforwardly correspond to the _actual_ available set of extensions in the environment.
 
 ### Variables
 
@@ -223,10 +214,9 @@ will be inappropriate, so a different class can be specified. Decorations (like 
 (var* cullPrimitive [N bool] Output (BuiltIn CullPrimitiveEXT) PerPrimitiveEXT) ; e.g. mesh shader culling use case
 ```
 
-Only variables of the `Function` or `Private` class should have initializers. Furthermore, any storage class other than `Function` (i.e. including `Private`) is considered to be allocated at the global scope, and so must have a constant initializer if one is given. You do not need to declare such variables at the file scope in Felvine, but they will eventually be moved there in the final SPIRV.
+Only variables of the `Function` or `Private` class may have initializers. Furthermore, any storage class other than `Function` (i.e. including `Private`) is considered to be allocated at the global scope, and so must have a constant initializer if one is given. You do not need to declare such variables at the global/file scope in Felvine, even though they represent globals in the final SPIRV.
 
-The initializer, storage class, and decorations can come in any order relative to each other,
-but only one initializer and one storage class can be provided at most.
+The initializer, storage class, and decorations can come in any order relative to each other, but only one initializer and one storage class can be provided at most.
 
 ### Uniforms and Push Constants
 
@@ -252,11 +242,11 @@ Therefore Felvine offers some very convenient alternatives. Declaring a uniform 
 })
 
 (buffer (0 0) MaterialData {
-  materials [Material]
+  materials [Material] ; runtime-length arrays can be the final entry of a buffer
 } NonWritable)
 
+; buffers and uniforms can be arrays of descriptors.
 (uniform (0 1) MaterialTextures [1024 (sampledImage :2D)])
-
 (buffer (0 2) GeometryData [128 {
   positions [(vec3 f32)]
 }])
@@ -269,14 +259,13 @@ Therefore Felvine offers some very convenient alternatives. Declaring a uniform 
 })
 ```
 
-After such a declaration, the values can simply be accessed by name, e.g. `CameraData.position` or `(GeometryData 63 :positions 15)`.
-Syntax for indexing is described in more detail later.
+After such a declaration, the values can simply be accessed by name or index, e.g. `CameraData.position` or `(GeometryData 63 :positions 15)`. Syntax for indexing is described in more detail later.
 
-Usages of all global variables, including those defined as uniforms or push constants, are automatically tracked and linked to each entry point that uses them in the final SPIRV. Keep in mind therefore that only one push constant may be statically used in this way per entrypoint. Also, like `var*`, although they are considered globals due to their storage class, uniforms do not need to be declared at the top level, so they can be generated and returned from a compile time function if needed.
+Usages of all global variables, including those defined as uniforms or push constants, are automatically tracked and linked to each entry point that uses them in the final SPIRV. Keep in mind that only one push constant may be statically used per entrypoint. Also, like `var*`, although they are considered globals due to their storage class, uniforms do not need to be declared at the top level, so they can be generated and returned from a compile time function if needed.
 
 ### Decorations
 
-Most of the time, Felvine offers convenient places to put SPIRV decorations on the relevant declarations. When, for whatever reason, it is necessary or preferable to apply decorations belatedly (e.g. for metaprogramming reasons) the `decorate` and `decorate-member` forms are provided.
+Most of the time, Felvine offers convenient places to put SPIRV decorations on the relevant declarations. When, for whatever reason, it is necessary or preferable to apply decorations belatedly (e.g. for metaprogramming reasons) the `decorate` and `decorateMember` forms are provided.
 
 Any SPIRV value or type can be passed to `(decorate <value/type> ...)` with any number of decorations given. The type or value will then be given those decorations in the SPIRV output. Consult the SPIRV documentation for guidelines on what decorations should apply to what types or values.
 
@@ -296,13 +285,11 @@ The body of the function can be a sequence of statements/expressions. The last e
     (+ v (* 2.0 c)))
 ```
 
-Function overloading (based on the parameter types) is not directly supported in Felvine but is not hard to write at user level.
-A Fennel function can analyze the types of the passed parameters and dispatch to the appropriate procedure if this logic is desired.
-Similarly, generic/templated functions are not included, but are easy to implement in principle with memoization and a wrapper function which will use `fn*` to declare a new SPIRV function only if it has not already been instantiated for the desired type(s).
+Function overloading (based on the parameter types) is not directly supported in Felvine but would be implementable at user level according to your own needs.
+For example, a Fennel function can analyze the types of the passed parameters and dispatch to the appropriate procedure if this logic is desired.
+Similarly, generic/templated functions are not included, but are easy to implement in principle with memoization and a wrapper function which could use `fn*` to declare a new SPIRV function only if it has not already been instantiated for the desired type(s).
 
-Note that even if you do not _call_ the function created with `fn*`, it will still appear in the final SPIRV. This is useful
-if you want to export or link the function definition between multiple SPIRV modules, but otherwise the definition can be stripped
-by `spirv-opt` if necessary.
+Note that even if you do not _call_ the function created with `fn*`, it will still appear in the final SPIRV. This is useful if you want to inspect the generated code, or export or link the function definition between multiple SPIRV modules, but otherwise the definition can be stripped by `spirv-opt` if necessary.
 
 ### Entrypoints
 
@@ -326,10 +313,13 @@ The following are notional examples of how this is used to configure various sha
 ; Mesh shaders need to define max output bounds
 (entrypoint meshMain MeshEXT [(LocalSize 8 8 1) (OutputVertices 64) (OutputPrimitivesEXT 64)] ...)
 
+; Most ray tracing execution models do not have any mandatory execution modes, but an empty list still must indicate this explicitly.
+(entrypoint generateRays RayGenerationKHR [] ...)
+
 ; ...etc.
 ```
 
-The body of the entrypoint is a great place to declare global variables that should not be shared like input/outputs. It is also where control flow begins.
+The body of the entrypoint is a great place to declare variables that should not be shared with other entrypoints in the same module, like inputs/outputs. It is also where control flow begins.
 
 If for whatever reason you need to defer the choice of execution modes to after the declaration of the entrypoint, this can be done. Simply call `(executionMode <name> ...<execution mode(s)>...)` with either the same name used for the entrypoint given as a string, or the entrypoint itself as the first parameter.
 
@@ -342,7 +332,7 @@ Fennel provides full tail call elimination, but SPIRV requires strictly structur
 The if/else block is designed to mimic Fennel's syntax. It begins with `if*`, followed by any number of condition-expression pairs, and finally an else expression. The value of the `if*` expression is the value of the branch that is taken, so it can also be used as a ternary expression.
 
 ```fennel
-(local v (if* (lt? x y) value-if-true value-if-false)) ; use as ternary
+(local v (if* (lt? x y) valueIfTrue valueIfFalse)) ; use as ternary
 
 ; multi-way if-else chain
 (if* foo (set* color in-color-1)
@@ -350,6 +340,37 @@ The if/else block is designed to mimic Fennel's syntax. It begins with `if*`, fo
      baz nil ; `nil` can indicate to do nothing
      (set* color (* color 0.1))) ; final else case not preceded by a condition 
 ```
+
+#### `switch*`
+
+The switch block is used to pick between multiple branches based on an integer value. A value must be given, followed by some number of branches.
+Each branch can either be preceeded by a single (constant or literal) integer, or a list of such integer expressions, each of which will be associated with the code that follows.
+To indicate the default case, the value `:default` is used in place of an integer.
+
+```fennel
+
+(local CHOICE_A 1)
+(local CHOICE_B 2)
+...
+
+(var* v i32 := ...)
+(var* w i32 := ...)
+
+(switch* v
+  0 (set* w 1) ; literal values or
+  CHOICE_A     ; constants can be used to indicate the case.
+    (do ...  )
+
+  [CHOICE_B CHOICE_C]  ; when multiple values should use the same code,
+    (do ...  )         ; give them in a list.
+
+  :default      ; if no other case matches,
+    (set* w 2)) ; the :default case will be used. It is optional.
+```
+
+Like `if*`, `switch*` can also be used to return a value as part of a larger expression.
+In order to be used this way, a `:default` case must be provided, and all of the final values of each branch must have a compatible type.
+Otherwise, if this is not possible, the value of the `switch*` block will simply be `nil`.
 
 #### `when*`
 
@@ -526,3 +547,5 @@ This syntax does not support inline decorations applied to the types, but this c
 [CTI]: https://dl.acm.org/doi/pdf/10.1145/3158140
 [Fennel]: https://fennel-lang.org/
 [PE]: https://en.wikipedia.org/wiki/Partial_evaluation
+[SPIRV]: https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html
+[Vulkan]: https://docs.vulkan.org/spec/latest/index.html

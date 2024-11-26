@@ -1040,10 +1040,10 @@
               (table.insert allCasePairs [caseExp.constant bodyBlock.id])))))
 
     (local mergeBlock (ctx:sibling))
+
+    (local result (and defaultCase (makePhiNodeIfPossible mergeBlock allFinalBodyBlocks)))
     (when (= nil defaultCase)
       (set defaultCase mergeBlock.id))
-
-    (local result (makePhiNodeIfPossible mergeBlock allFinalBodyBlocks))
     
     (ctx:instruction (Op.OpSelectionMerge mergeBlock.id (SelectionControl)))
     (each [_ [bodyCtx] (ipairs allFinalBodyBlocks)]
