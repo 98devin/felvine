@@ -1,3 +1,4 @@
+#! fennel
 
 (local base (require :base))
 (local fennel (require :fennel))
@@ -13,23 +14,22 @@
   (table.unpack (capsList e)))
 
 
-(fn felvineDofile [file runtime]
+(fn felvineDofile [file runtime ...]
   (local runtime (or runtime (Runtime.new)))
   (local env (Dsl.createExportedEnv runtime))
   (fennel.dofile file
     { :env env
       :compilerEnv _G
       :requireAsInclude true
-    })
-  runtime)
+    } ...))
 
 
-(fn asmFile [file executionEnv]
+(fn asmFile [file executionEnv ...]
   (local run (Runtime.new executionEnv))
   (local startTime (os.clock))
   (var totalTime 0)
 
-  (felvineDofile file run)
+  (felvineDofile file run ...)
   (local ops (run.env:produceOps))
 
   (local endTime (os.clock))
@@ -64,12 +64,12 @@
   (outFile:close))
   
 
-(fn compileFile [file executionEnv]
+(fn compileFile [file executionEnv ...]
   (local run (Runtime.new executionEnv))
   (local startTime (os.clock))
   (var totalTime 0)
 
-  (felvineDofile file run)
+  (local result (felvineDofile file run ...))
   
   (local ops (run.env:produceOps))
   (local header (run.env:produceHeader))
@@ -86,7 +86,9 @@
 
   (local endTime (os.clock))
   (set totalTime (+ totalTime (- endTime startTime)))
-  (print "finished in" totalTime ":" outFileName))
+  (print "finished in" totalTime ":" outFileName)
+  
+  result)
 
 
 (var useExecutionEnv false)
