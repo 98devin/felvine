@@ -1062,7 +1062,7 @@
   (local id (ctx:freshID))
   (local op ((. Op self.operation) tid id (table.unpack argIDs)))
   (ctx:instruction op)
-  id)
+  (values id op))
 
 (fn nodeReifySpecConstantOp [self ctx]
   (local tid (ctx:typeID self.type))
@@ -1072,7 +1072,7 @@
   (local id (ctx:freshID))
   (local op (Op.OpSpecConstantOp tid id ((. SpecConstantOp self.operation) (table.unpack argIDs))))
   (ctx:instruction op)
-  id)
+  (values id op))
 
 (fn nodeReifyGLSL [self ctx]
   (local extID (ctx:extInstID :GLSL.std.450))
@@ -1083,7 +1083,7 @@
   (local id (ctx:freshID))
   (local op (Op.OpExtInst tid id extID ((. ExtGLSL self.operation) (table.unpack argIDs))))
   (ctx:instruction op)
-  id)
+  (values id op))
 
 
 (fn Type.primCommonSupertype [t0 ...]
@@ -1759,6 +1759,7 @@
     :Fetch u32
     :Gather f32
     :Write u32
+    :Texel u32
   })
 
 
@@ -1768,7 +1769,10 @@
   (local baseCoordCount (. imageCoordDims imageType.dim.tag))
   (local (defaultCoordPrim reqCoordCount)
     (values (. imageOpCoordType imageOp)
-            (+ baseCoordCount (if (or imageType.array ?proj) 1 0))))
+            (+ baseCoordCount
+              (if (and (or imageType.array ?proj)
+                       (or (not= imageOp :Texel) (not= imageType.dim :Cube))) 
+                  1 0))))
 
   (local coordPrim (if (node? coord) (coord.type:primCount) defaultCoordPrim))
 
@@ -1829,8 +1833,8 @@
         (:ConstOffsets o) (values 2 (ImageOperands.ConstOffsets o))
         (:Sample s) (values 2 (ImageOperands.Sample s))
         (:MinLod lod) (values 2 (ImageOperands.MinLod lod))
-        (:MakeTexelAvailable scope) (values 2 (ImageOperands.MakeTexelAvailable scope))
-        (:MakeTexelVisible scope) (values 2 (ImageOperands.MakeTexelVisible scope))
+        (:MakeTexelAvailable scope) (values 2 (ImageOperands.MakeTexelAvailable (Node.aux.enumValue Scope scope)))
+        (:MakeTexelVisible scope) (values 2 (ImageOperands.MakeTexelVisible (Node.aux.enumValue Scope scope)))
         :NonPrivateTexel (values 1 ImageOperands.NonPrivateTexel)
         :VolatileTexel (values 1 ImageOperands.VolatileTexel)
         :SignExtend (values 1 ImageOperands.SignExtend)
@@ -2041,7 +2045,7 @@
 
 
 (fn Node.gather [image coord component? ...]
-  (local image (Node.aux.autoderef image)) ; allow fetch on sampled images by extracting image from combined object
+  (local image (Node.aux.autoderef image))
   (assert (= image.type.kind :sampledImage) (.. "Cannot gather from non-sampled image type: " image.type.summary))
   (local imageType image.type.image)
 
@@ -2125,7 +2129,7 @@
     (.. "Cannot fetch from cube image: " image.type.summary))
 
   (local coord (Node.aux.imageCoord imageType :Fetch coord))
-  
+   
   (local (properties imageOperands) (Node.aux.collectImageOperands ...))
   (assert (not (or properties.Proj properties.Dref))
           (.. "Cannot use Projective or Depth in image fetch/read: " image.type.summary))
@@ -2170,6 +2174,41 @@
       :operands operands
       :reify nodeReifyImageOp
     }))
+
+
+; (fn nodeReifyImageOp [self ctx]
+;   (local tid (ctx:typeID self.type))
+;   (local argIDs
+;     (icollect [_ arg (ipairs self.operands)]
+;       (if (enum? arg) (Node.aux.reifyImageOperands ctx arg)
+;           (node? arg) (ctx:nodeID arg))))
+;   (local id (ctx:freshID))
+;   (local op ((. Op self.operation) tid id (table.unpack argIDs)))
+;   (ctx:instruction op)
+;   id)
+
+(fn nodeReifyImageTexel [self ctx]
+  (local (id op) (nodeReifyOp self ctx))
+  (ctx:interfaceID (. op.operands 3))
+  id)
+
+(fn Node.imageTexel [image coord sample?]
+  (assert (and (node? image)
+               (= image.type.kind :pointer)
+               (= image.type.elem.kind :image))
+          (.. "Invalid image argument to imageTexel, must be a pointer to an image, got: " (tostring image)))
+  
+  (local imageType image.type.elem)
+  (local coord (Node.aux.imageCoord imageType :Texel coord))
+
+  (when (not imageType.ms)
+    (assert (= nil sample?) (.. "Cannot specify imageTexel sample for non-multisampled image type: " imageType.summary)))
+  (local sample (u32 (or sample? 0)))
+
+  (local result (Type.pointer imageType.elem StorageClass.Image))
+  (local node (Node.aux.op :OpImageTexelPointer result image coord sample))
+  (set node.reify nodeReifyImageTexel)
+  node)
 
 ;
 ; Subgroup operations
@@ -2372,24 +2411,18 @@
   (assert (= type.kind :int))
     (.. "Atomically accessed value must be scalar integer, got: " type.summary))
 
-(fn Node.aux.atomicScopeValue [scope]
-  (Node.aux.enumValue Scope scope))
-
-(fn Node.aux.atomicMemorySemanticsValue [memorySemantics]
-  (Node.aux.enumValue MemorySemantics memorySemantics))
-
 (fn Node.atomic.load [ptr scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
   (Node.aux.validateAtomicElem ptr.type.elem)
-  (local scope (Node.aux.atomicScopeValue scope))
-  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (local scope (Node.aux.enumValue Scope scope))
+  (local memorySemantics (Node.aux.enumValue MemorySemantics memorySemantics))
   (Node.aux.op :OpAtomicLoad ptr.type.elem ptr scope memorySemantics))
   
 (fn Node.aux.atomicStore [ctx ptr value scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
   (Node.aux.validateAtomicElem ptr.type.elem)
-  (local scope (Node.aux.atomicScopeValue scope))
-  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (local scope (Node.aux.enumValue Scope scope))
+  (local memorySemantics (Node.aux.enumValue MemorySemantics memorySemantics))
   (ctx:instruction
     (Op.OpAtomicStore
       (ctx:nodeID ptr)
@@ -2400,38 +2433,38 @@
 (fn Node.atomic.swap [ptr value scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
   (Node.aux.validateAtomicElem ptr.type.elem)
-  (local scope (Node.aux.atomicScopeValue scope))
-  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (local scope (Node.aux.enumValue Scope scope))
+  (local memorySemantics (Node.aux.enumValue MemorySemantics memorySemantics))
   (Node.aux.op :OpAtomicExchange ptr.type.elem ptr scope memorySemantics (ptr.type.elem value)))
 
 (fn Node.atomic.compareSwap [ptr value compareValue scope eqMemorySemantics uneqMemorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
   (Node.aux.validateAtomicElem ptr.type.elem)
-  (local scope (Node.aux.atomicScopeValue scope))
-  (local eqMemorySemantics (Node.aux.atomicMemorySemanticsValue eqMemorySemantics))
-  (local uneqMemorySemantics (Node.aux.atomicMemorySemanticsValue uneqMemorySemantics))
+  (local scope (Node.aux.enumValue Scope scope))
+  (local eqMemorySemantics (Node.aux.enumValue MemorySemantics eqMemorySemantics))
+  (local uneqMemorySemantics (Node.aux.enumValue MemorySemantics uneqMemorySemantics))
   (Node.aux.op :OpAtomicCompareExchange ptr.type.elem ptr scope eqMemorySemantics uneqMemorySemantics (ptr.type.elem value) (ptr.type.elem compareValue)))
 
 (fn Node.atomic.increment [ptr scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
   (Node.aux.validateAtomicElemInt ptr.type.elem)
-  (local scope (Node.aux.atomicScopeValue scope))
-  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (local scope (Node.aux.enumValue Scope scope))
+  (local memorySemantics (Node.aux.enumValue MemorySemantics memorySemantics))
   (Node.aux.op :OpAtomicIIncrement ptr.type.elem ptr scope memorySemantics))
   
 (fn Node.atomic.decrement [ptr scope memorySemantics]
   (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
   (Node.aux.validateAtomicElemInt ptr.type.elem)
-  (local scope (Node.aux.atomicScopeValue scope))
-  (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+  (local scope (Node.aux.enumValue Scope scope))
+  (local memorySemantics (Node.aux.enumValue MemorySemantics memorySemantics))
   (Node.aux.op :OpAtomicIDecrement ptr.type.elem ptr scope memorySemantics))
 
 (fn nodeAtomicBinop [{ :name name :sint sintOp :uint uintOp :float floatOp }]
   (fn [ptr value scope memorySemantics]
     (assert (= ptr.type.kind :pointer) (.. "Atomic access must be to pointer, got: " (tostring ptr)))
     (Node.aux.validateAtomicElem ptr.type.elem)
-    (local scope (Node.aux.atomicScopeValue scope))
-    (local memorySemantics (Node.aux.atomicMemorySemanticsValue memorySemantics))
+    (local scope (Node.aux.enumValue Scope scope))
+    (local memorySemantics (Node.aux.enumValue MemorySemantics memorySemantics))
     (local opcode
       (case ptr.type.elem
         {:kind :int : signed} (if signed sintOp uintOp)

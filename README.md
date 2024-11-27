@@ -147,9 +147,10 @@ the enum type from the `spirv` module, or qualified it as `spirv.EnumName`.
 | RayFlags | `:OpaqueKHR` `RayFlags.OpaqueKHR` `(RayFlags :OpaqueKHR)` | `gl_RayFlagsOpaqueEXT` |
 | RayFlags (multiple) | `(RayFlags :OpaqueKHR :TerminateOnFirstHitKHR)` | `gl_RayFlagsOpaqueEXT + gl_RayFlagsTerminateOnFirstHitEXT` |
 | RayQueryCommittedIntersectionType | `:RayQueryCommittedIntersectionNoneKHR` `RayQueryCommittedIntersectionType.RayQueryCommittedIntersectionNoneKHR` | `gl_RayQueryCommittedIntersectionNoneEXT` |
+| Scope | `:Workgroup` `Scope.Workgroup` `Scope.Invocation` | ? |
+| MemorySemantics | `(MemorySemantics :SequentiallyConsistent :WorkgroupMemory :MakeAvailable)` | ?
 
-Any form can be used as an argument (in the appropriate places) to functions like `initializeRayQuery`, `traceRay`, or `getRayQueryIntersectionType`.
-Outside of this use case, the qualified form may be more useful as it allows retrieving the underlying integer value as well in the `.value` field.
+Any form can be used as an argument (in the appropriate places) to functions like `initializeRayQuery`, `traceRay`, barriers, atomic operations, etc. Outside of this use case, the qualified form may be more useful as it allows retrieving the underlying integer value as well in the `.value` field.
 
 ## Declarations and special syntax
 
@@ -489,15 +490,19 @@ For example:
 (local m00  (data :matrix 0 0))  ; When using the list style indexing, we can chain multiple accesses together.
 (local m0YZ (data.matrix 0 :yz)) ; Matrix indexing returns columns, which we can then swizzle if we desire.
 
-; Note: p is a Function* PhysicalStorageBuffer* since variables are initially pointer-valued and indexing preserves the leading pointer in the type.
+; We can dereference a pointer by using `.*`, equivalent to accessing the field :*
+(local p data.pointer.*)
+
+; Otherwise, p will be a Function* PhysicalStorageBuffer* to a struct,
+; since variables are initially pointer-valued and indexing preserves the outermost pointer.
 (local p data.pointer) 
 
-; Often you _do_ want the indexed value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
+; Often you want the value to be a pointer, as SPIRV has restrictions on the indexing available otherwise.
+; Usually the default semantics will be the ones you want; since indexing (other than dereferencing) will preserve the outermost pointer.
 ; For example, only pointers-to-arrays can be dynamically indexed, while direct array indices must be constants.
-; Usually the default semantics will be the ones you want; indexing will preserve the outermost pointer.
 
 (local a0ptr (data.array 0)) ; Function* f32, using dynamic indexing (happens to be constant here).
-(local a0 (data.array.* 0)) ; f32, using constant indexing. Worse choice since (in principle) it copies the array.
+(local a0 (data.array.* 0))  ; f32, using constant indexing. Worse choice since (in principle) it copies the array.
 
 ; Felvine auto-dereferences when needed so usually you will not need to do this, but all these are valid and equivalent:
 (local b (+ a0ptr.* 10)) ; trailing .* to dereference
@@ -505,20 +510,20 @@ For example:
 (local b (+ a0 10))       ; a0 already is a plain f32 value
 
 ; Because the leading pointer type is preserved,
-; the SAME indexing syntax is used for storing values into variables/buffers etc.
+; the same indexing syntax is used for storing values into variables/buffers etc.
 (set* data.vector data.vector.zyx)
 (set* (data :array 5) v0)
 
-; Felvine auto-dereferences pointer indirections, here we have two nested pointers as another example.
+; Felvine auto-dereferences pointer indirections where necessary. Here the type of `p` has two pointer indirections.
 ; All of the below are valid and equivalent, such that px is a `PhysicalStorageBuffer* f32`
-(local px p.x) 
-(local px p.*.x)
-(local px (p :* :x)) ; (p :*) is equivalent to p.*
+(local px p.x)       ; auto dereference in order to get field .x
+(local px p.*.x)     ; manual dereference, then getting field .x
+(local px (p :* :x)) ; same as above, (p :*) is equivalent to p.*
 
-; Without a trailing .*, we are setting the pointer value itself here, not its contents.
+; Without a trailing .*, we are setting the data.pointer value itself here, not what it points to.
 (set* data.pointer otherPointerValue)
 
-; Here we set the pointed-to value. Note that px is also implicitly dereferenced when casting it to f32 here.
+; Here we set the pointed-to value. Note that px is also implicitly dereferenced when constructing the struct value.
 (set* data.pointer.* { :x px :y px })
 ```
 
@@ -555,8 +560,16 @@ This syntax does not support inline decorations applied to the types, but this c
 
 - Lua (https://www.lua.org/)
 - Fennel (https://fennel-lang.org/)
+- Vulkan ([Documentation][Vulkan], [Homepage](https://www.vulkan.org/))
+- SPIRV ([Documentation][SPIRV], [Homepage](https://www.khronos.org/spir/))
 - Collapsing Towers of Interpreters (https://dl.acm.org/doi/pdf/10.1145/3158140)
 - Staged Metaprogramming for Shader System Development (https://dl.acm.org/doi/pdf/10.1145/3355089.3356554)
+
+<style>
+td code {
+  white-space: nowrap !important;
+}
+</style>
 
 [Lua]: https://www.lua.org/
 [CTI]: https://dl.acm.org/doi/pdf/10.1145/3158140

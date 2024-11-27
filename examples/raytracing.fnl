@@ -65,9 +65,14 @@
   (var* hitPositions [3 (vec3 f32)] Input (BuiltIn HitTriangleVertexPositionsKHR))
   (var* worldToObject (mat3x4 f32) Input (BuiltIn WorldToObjectKHR))
 
+  ; local* enforces that the expressions are inserted into SPIRV at this exact spot.
+  ; If we simply used local, they would be lazily reified only where used. But in this case,
+  ; that's problematic as we intend to use them in multiple branches below. Therefore to avoid
+  ; errors, we must either call `reify` or, more simply, use `local*`
   (local* pos0 (hitPositions 0 :*))
   (local* pos1 (hitPositions 1 :*))
   (local* pos2 (hitPositions 2 :*))
+
   (local barycentricCoords
     ((vec3 f32) (- 1 attribs.x attribs.y) attribs.xy))
 

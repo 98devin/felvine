@@ -369,12 +369,12 @@
           _ (do 
               (self.env:instruction op)
               (tset self.function.interface (. op.operands 2) true)))
+      :OpPhi (table.insert self.opphi op)
       (where tag
         (or (tag:match "OpConstant") (tag:match "OpSpecConstant") (tag:match "OpType")))
           (self.env:instruction op)
       (where (or :OpName :OpMemberName))
           (self.env:instruction op)
-      :OpPhi (table.insert self.opphi op)
       _ (table.insert self.body op))
     (case op.tag
       (where 
@@ -519,6 +519,7 @@
       :sample Node.sample
       :fetch Node.fetch
       :gather Node.gather
+      :imageTexel Node.imageTexel
       :queryImageSize Node.queryImageSize
       :queryImageLod Node.queryImageLod
       :queryImageSizeLod Node.queryImageSizeLod
