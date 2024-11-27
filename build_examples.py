@@ -69,7 +69,7 @@ parser = ArgumentParser()
 parser.add_argument("--mode", type=str, choices=["batch", "cases"], default="cases")
 parser.add_argument("--folder", type=Path, default="examples")
 parser.add_argument("--bench", action="store_true")
-parser.add_argument("--command", type=str, choices=["c", "t", "S"], nargs="+", default=["-c"])
+parser.add_argument("--command", type=str, choices=["c", "t", "S"], nargs="+", default=["c"])
 parser.add_argument("--optimize", action="store_true")
 
 args = parser.parse_args()

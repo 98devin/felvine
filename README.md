@@ -15,10 +15,8 @@ operator overloading, prototype-based OO, and other techniques are also possible
 ### Embedded
 
 Not only are Felvine shaders embedded within Fennel, but Felvine as a whole can be embedded within any
-host which can interact with Lua. This allows runtime compilation of shaders and trivially passing
-complex parameters into the shader scripts where specialization constants might be inconvenient.
-Reflection of the entire compilation environment and arbitrary return values from shader compilation are also possible, without
-necessarily needing to introspect the SPIRV output to get bindings etc. 
+host which can interact with Lua. This means Felvine is designed to be vendored, embedded, and tailored to your own needs, not only used as a command line utility. This allows runtime compilation of shaders and trivially passing complex parameters into the shader scripts where specialization constants might be inconvenient.
+Reflection of the entire compilation environment and arbitrary return values from shader compilation is also possible, without necessarily needing to parse the SPIRV output to get bindings etc. 
 
 ### SPIRV
 
@@ -60,7 +58,8 @@ Lua provides many extension points in the form of what it calls "metamethods" wh
 (print (double foo*)) ; => (expr f32 OpFAdd)
 ```
 
-Examples are provided in the `examples/` folder to understand how this works and to show how different kinds of shaders can be written. Each of them have been based on an analogous GLSL shader for comparison.
+> Examples are provided in the `examples/` folder to understand how this works and to show how different kinds of shaders can be written. Each of them have been based on an analogous GLSL shader for comparison. With `fennel`
+and spirv-val/spirv-opt on your path, you can build and validate the examples by running `python build_examples.py`.
 
 The upshot of all this in the end is: you can write a script that looks like regular code. Certain aspects of it are annotated to indicate that they produce specifically a SPIRV value, internally called a `Node`. You can use values like this in math expressions and access their fields etc. in a natural way because of polymorphism. The script is executed during the equivalent of a "compile time" and collects information about the SPIRV calculations to be performed.
 
@@ -134,7 +133,14 @@ Other types of values (images, functions, etc.) cannot be constructed like this 
 | Trigonometry | `(sin theta)` `(cos theta)` `(tan theta)` `(arcsin theta)` `(arccos theta)` `(arctan theta)` `(sinh theta)` `(cosh theta)` `(tanh theta)` `(arcsinh theta)` `(arccosh theta)` `(arctanh theta)` | `sin(theta)` `cos(theta)` `tan(theta)` `asin(theta)` `acos(theta)` `atan(theta)` `sinh(theta)` `cosh(theta)` `tanh(theta)` `asinh(theta)` `acosh(theta)` `atanh(theta)` |
 | Other floating operations | `(exp x)` `(exp2 x)` `(log x)` `(ln x)` `(log2 x)` `(sqrt x)` `(inverseSqrt x)` `(ldexp l exp)` `(local (l exp) (frexp x))` | `exp(x)` `exp2(x)` `log(x)` `log(x)` `log2(x)` `sqrt(x)` `inversesqrt(x)` `ldexp(l, exp)` `l = frexp(x, exp)` |
 | Vector and Matrix operations | `(dot v1 v2)` `(distance v1 v2)` `(norm v)` `(length v)` `(normalize v)` `(faceForward v i ref)` `(reflect v n)` `(refract v n eta)` `(det m)` `(determinant m)` `(invert m)` `(transpose m)` | `dot(v1, v2)` `distance(v1, v2)` `length(v)` `length(v)` `normalize(v)` `faceforward(v, i, ref)` `reflect(v, n)` `refract(v, n, eta)` `determinant(m)` `determinant(m)` `inverse(m)` `transpose(m)` |
-| Floating pack/unpack operations | `(packUnorm2x16 v)` `(packSnorm2x16 v)` `(packHalf2x16 v)` `(packUnorm4x8 v)` `(packSnorm4x8 v)` `(packDouble2x32 v)` `(unpackUnorm2x16 i)` `(unpackSnorm2x16 i)` `(unpackHalf2x16 i)` `(unpackUnorm4x8 i)` `(unpackSnorm4x8 i)` `(unpackDouble2x32 d)` | `packUnorm2x16(v)` `packSnorm2x16(v)` `packHalf2x16(v)` `packUnorm4x8(v)` `packSnorm4x8(v)` `packDouble2x32(v)` `unpackUnorm2x16(i)` `unpackSnorm2x16(i)` `unpackHalf2x16(i)` `unpackUnorm4x8(i)` `unpackSnorm4x8(i)` `unpackDouble2x32(d)` | 
+| Floating pack/unpack operations | `(packUnorm2x16 v)` `(packSnorm2x16 v)` `(packHalf2x16 v)` `(packUnorm4x8 v)` `(packSnorm4x8 v)` `(packDouble2x32 v)` `(unpackUnorm2x16 i)` `(unpackSnorm2x16 i)` `(unpackHalf2x16 i)` `(unpackUnorm4x8 i)` `(unpackSnorm4x8 i)` `(unpackDouble2x32 d)` | `packUnorm2x16(v)` `packSnorm2x16(v)` `packHalf2x16(v)` `packUnorm4x8(v)` `packSnorm4x8(v)` `packDouble2x32(v)` `unpackUnorm2x16(i)` `unpackSnorm2x16(i)` `unpackHalf2x16(i)` `unpackUnorm4x8(i)` `unpackSnorm4x8(i)` `unpackDouble2x32(d)` |
+| Barriers | Given Scopes `s1`, `s2` and MemorySemantics `m`: `(barrier)` `(controlBarrier s1 s2 m)` `(memoryBarrier s1 m)` | `barrier()` (no equiv to controlBarrier?) `memoryBarrier()/groupMemoryBarrier()/memoryBarrierImage()/etc.` |
+| Atomic operations | Given a Scope `s` and MemorySemantics `m`: `(atomic.add ptr val s m)` `(atomic.min ptr val s m)` `(atomic.max ptr val s m)` `(atomic.band ptr val s m)` `(atomic.bor ptr val s m)` `(atomic.bxor ptr val s m)` `(atomic.swap ptr val s m)` `(atomic.compareSwap ptr val cmp s eqM neqM)` | `atomicAdd(ptr, val)` `atomicMin(ptr, val)` `atomicMax(ptr, val)` `atomicAnd(ptr, val)` `atomicOr(ptr, val)` `atomicXor(ptr, val)` `atomicExchange(ptr, val)` `atomicCompSwap(ptr, cmp, val)` |
+| More Atomic Operations | `(atomic.load ptr s m)` `(atomic.store ptr val s m)` `(atomic.increment ptr s m)` `(atomic.decrement ptr s m)` | ? |
+| Ray Queries | `(rt.initializeRayQuery rq as flags mask orig tmin dir tmax)` `(rt.proceedRayQuery rt)` `(rt.terminateRayQuery rq)` `(rt.getRayQueryIntersectionType rq intersectionType)` etc. | `rayQueryInitializeEXT(rq, as, flags, mask, orig, tmin, dir, tmax)` `rayQueryProceedEXT(rq)` `rayQueryTerminateEXT(rq)` `rayQueryGetIntersectionTypeEXT(rq, intersectionType)` etc. |
+| Ray Tracing | `(rt.traceRay as flags mask offset stride miss orig tmin dir tmax payload)` `(rt.executeCallable sbtID callableData)` (note payload and callable data are passed by name, as variables) | `traceRayEXT(as, flags, mask, offset, stride, miss, orig, tmin, dir, tmax, payloadID)` `executeCallableEXT(sbtID, callableDataID)` |
+| Mesh Shaders | `(mesh.emitMeshTasks x y z)` `(mesh.setMeshOutputs vcount pcount)` | `EmitMeshTasksEXT(x, y, z)` `SetMeshOutputsEXT(vcount, pcount)` |
+| Geometry Shaders/Transform Feedback | `(geometry.emitVertex)` `(geometry.emitStreamVertex id)` `(geometry.endPrimitive)` `(geometry.endStreamPrimitive id)` | `EmitVertex()` `EmitStreamVertex(id)` `EndPrimitive()` `EndStreamPrimitive(id)` |
 
 ### SPIRV Enum Values
 
