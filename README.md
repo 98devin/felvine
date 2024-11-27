@@ -565,6 +565,10 @@ This syntax does not support inline decorations applied to the types, but this c
 - Collapsing Towers of Interpreters (https://dl.acm.org/doi/pdf/10.1145/3158140)
 - Staged Metaprogramming for Shader System Development (https://dl.acm.org/doi/pdf/10.1145/3355089.3356554)
 
+---
+
+(c) 2024 Devin Hill
+
 <style>
 td code {
   white-space: nowrap !important;
